@@ -26,7 +26,7 @@ export interface Employee {
   gender: string;
 }
 
-export const API_URL = "https://script.google.com/macros/s/AKfycbz84p_VM_kkQ5oLVF5HljdJovCFy-winENuYRVEpBGqwfMFgzEXyS9JSH1S75zYw88SYg/exec";
+export const API_URL = "https://script.google.com/macros/s/AKfycbwQAfJ_ibCwoqXF7LjyyHprR6ilok_m2IAJeGzmP-eZA47freXo2emfobMZKaDcW55v-Q/exec";
 export const INITIAL_CODE = "NACC2026";
 
 /* ============================================================

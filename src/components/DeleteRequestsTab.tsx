@@ -62,15 +62,14 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
       return r.status === map[filter];
     });
     if (startDate || endDate) {
-      const start = startDate ? new Date(startDate).getTime() : 0;
-      const end = endDate ? new Date(endDate + "T23:59:59").getTime() : Date.now() + 86400000;
+      const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : 0;
+      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
       res = res.filter((r) => {
-        // نفضل الفلترة بتاريخ المستند إذا كان متاحاً، وإلا تاريخ التقديم
-        const dateToCompare = r.docDate || r.submitDate;
-        if (!dateToCompare) return false;
-        const parts = dateToCompare.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        const dateStr = r.docDate || r.submitDate;
+        if (!dateStr) return false;
+        const parts = dateStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
         if (!parts) return true;
-        const dt = new Date(`${parts[1]}-${String(parts[2]).padStart(2, "0")}-${String(parts[3]).padStart(2, "0")}`).getTime();
+        const dt = new Date(`${parts[1]}-${parts[2].padStart(2, '0')}-${parts[3].padStart(2, '0')}`).setHours(0, 0, 0, 0);
         return dt >= start && dt <= end;
       });
     }
@@ -140,6 +139,7 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
                 <th className="px-3 py-2 text-right">الرقم الوطني</th>
                 <th className="px-3 py-2 text-right">السبب</th>
                 <th className="px-3 py-2 text-right">رقم القرار</th>
+                <th className="px-3 py-2 text-right">تاريخ القرار</th>
                 <th className="px-3 py-2 text-right">تاريخ التقديم</th>
                 <th className="px-3 py-2 text-right">بواسطة</th>
                 <th className="px-3 py-2 text-right">الحالة</th>
@@ -156,6 +156,7 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
                   <td className="px-3 py-2 font-mono text-indigo-700" dir="ltr">{req.nationalNumber}</td>
                   <td className="px-3 py-2 max-w-[150px] truncate" title={req.reason}>{req.reason}</td>
                   <td className="px-3 py-2 text-slate-600">{req.docNumber || "—"}</td>
+                  <td className="px-3 py-2 text-slate-600">{req.docDate || "—"}</td>
                   <td className="px-3 py-2 text-slate-600 text-[10px]">{req.submitDate}</td>
                   <td className="px-3 py-2 text-slate-600">{req.submittedBy}</td>
                   <td className="px-3 py-2">
