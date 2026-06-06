@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirect all routes to index.html for Single Page Application (SPA) support
+# This prevents "Page Not Found" errors when refreshing the page
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
