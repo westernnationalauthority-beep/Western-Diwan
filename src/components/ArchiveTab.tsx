@@ -72,11 +72,11 @@ export default function ArchiveTab({ session }: { session: Session }) {
       const result = await cleanArchive(cleanMonths);
       if (result.status === "success") {
         addLog(session, "clean_archive", `تنظيف الأرشيف: حذف السجلات الأقدم من ${cleanMonths} شهر`);
-        alert("✅ تم إرسال طلب تنظيف الأرشيف بنجاح");
+        alert("✅ " + (result.message || "تم تنظيف الأرشيف بنجاح"));
         setShowCleanModal(false);
-        setTimeout(() => load(), 1500);
+        setTimeout(() => load(), 1000);
       } else {
-        alert("❌ فشل تنظيف الأرشيف");
+        alert("❌ " + (result.message || "فشل تنظيف الأرشيف"));
       }
     } catch {
       alert("❌ فشل الاتصال");

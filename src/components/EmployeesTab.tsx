@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, requestEmployeeDelete, getDeleteRequests } from "../data/employees";
+import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, requestEmployeeDelete } from "../data/employees";
 import { addLog, getCustomFields, type CustomField, type Session, mergeAllEmployees } from "../lib/storage";
 import { isEmpty, getMissingFields, openWhatsApp, sendMissingFieldsViaWhatsApp, ALL_FIELD_LABELS } from "../utils/helpers";
 import { StatCard, Th, SortIcon, PageBtn, Pagination, getStatusBadge, getDataCompleteBadge } from "./Shared";

@@ -26,7 +26,7 @@ export interface Employee {
   gender: string;
 }
 
-export const API_URL = "https://script.google.com/macros/s/AKfycbwFU1zHi8YRWS77J2ajUWpircsYjqrnJ2IvQmKwnSJHizTUrxHNiCGx49S8ORcAe8XjMA/exec";
+export const API_URL = "https://script.google.com/macros/s/AKfycbzHqqZNRU5ET5MTackXiztDrujXwM5q1OFuah-UvPd8DKqd1unUYmXfO4UUrlFdbdJdjg/exec";
 export const INITIAL_CODE = "NACC2026";
 
 export async function getSystemInfo(): Promise<any> {
@@ -141,6 +141,39 @@ export async function unblockEmployee(nationalNumber: string): Promise<{ status:
   }
 }
 
+export async function updateDeleteRequest(refNum: string, data: { reason?: string; docNumber?: string; docDate?: string }, user: string): Promise<{ status: string; message?: string }> {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "update_delete_request", refNum, ...data, user })
+    });
+    return await res.json();
+  } catch (e) { return { status: "error", message: "فشل الاتصال" }; }
+}
+
+export async function deleteDeleteRequest(refNum: string, user: string): Promise<{ status: string; message?: string }> {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "delete_delete_request", refNum, user })
+    });
+    return await res.json();
+  } catch (e) { return { status: "error", message: "فشل الاتصال" }; }
+}
+
+export async function permanentDeleteArchive(nationalNumber: string, user: string): Promise<{ status: string; message?: string }> {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "permanent_delete_archive", nationalNumber, user })
+    });
+    return await res.json();
+  } catch (e) { return { status: "error", message: "فشل الاتصال" }; }
+}
+
 /* ============================================================
    نظام طلبات الحذف والأرشيف
    ============================================================ */
@@ -245,26 +278,32 @@ export const DELETE_REASONS = [
   "أخرى",
 ];
 
-export async function cleanArchive(months: number): Promise<{ status: string; message?: string }> {
+export async function cleanDeleteRequests(months: number): Promise<{ status: string; message?: string }> {
   try {
-    await fetch(API_URL, {
-      method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "clean_archive", months }),
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "clean_delete_requests", months: months })
     });
-    return { status: "success", message: "تم إرسال طلب تنظيف الأرشيف" };
-  } catch {
+    const text = await res.text();
+    const json = JSON.parse(text);
+    return json;
+  } catch (e) {
     return { status: "error", message: "فشل الاتصال" };
   }
 }
 
-export async function cleanDeleteRequests(months: number, onlyProcessed: boolean = true): Promise<{ status: string; message?: string }> {
+export async function cleanArchive(months: number): Promise<{ status: string; message?: string }> {
   try {
-    await fetch(API_URL, {
-      method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "clean_delete_requests", months, onlyProcessed }),
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "clean_archive", months: months })
     });
-    return { status: "success", message: "تم إرسال طلب تنظيف الطلبات القديمة" };
-  } catch {
+    const text = await res.text();
+    const json = JSON.parse(text);
+    return json;
+  } catch (e) {
     return { status: "error", message: "فشل الاتصال" };
   }
 }

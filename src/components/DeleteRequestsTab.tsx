@@ -1,22 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { type Session } from "../lib/storage";
-import { type DeleteRequest, DELETE_REASONS, getDeleteRequests, requestEmployeeDelete, approveDeleteRequest, rejectDeleteRequest, cleanDeleteRequests } from "../data/employees";
+import { type DeleteRequest, getDeleteRequests, approveDeleteRequest, rejectDeleteRequest, cleanDeleteRequests, updateDeleteRequest, deleteDeleteRequest } from "../data/employees";
 import { addLog } from "../lib/storage";
 import { StatCard } from "./Shared";
 import { getHeaderHTML, getFooterHTML } from "./PrintTemplates";
 
-function printDeleteRequestsReport(requests: DeleteRequest[], title = "تقرير طلبات الحذف", dateRange = "") {
-  const w = window.open("", "_blank", "width=1100,height=800,scrollbars=yes");
-  if (!w) { alert("يرجى السماح بالنوافذ المنبثقة للطباعة"); return; }
-  const rows = requests.map((r, i) => `
-    <tr>
-      <td>${i + 1}</td><td>${r.refNum}</td><td dir="ltr">${r.nationalNumber}</td><td>${r.employeeName}</td>
-      <td>${r.reason || "-"}</td><td>${r.docNumber || "-"}</td><td>${r.submittedBy || "-"}</td>
-      <td>${r.submitDate || "-"}</td><td>${r.status || "-"}</td><td>${r.adminNote || "-"}</td><td>${r.adminDate || "-"}</td>
-    </tr>`).join("");
-  w.document.write(`<!doctype html><html dir="rtl"><head><meta charset="UTF-8"><title>${title}</title><style>
-    body{font-family:Tahoma,Arial,sans-serif;padding:20px;color:#172033} table{width:100%;border-collapse:collapse;font-size:11px} th{background:#1e3a8a;color:white;padding:8px;border:1px solid #1e3a8a} td{padding:7px;border:1px solid #dbe4ee} tr:nth-child(even){background:#f8fafc}.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.note{font-size:11px;color:#64748b}.no-print{position:fixed;bottom:20px;left:20px;padding:10px 22px;background:#1e3a8a;color:white;border:0;border-radius:8px}@media print{.no-print{display:none}}
-  </style></head><body>${getHeaderHTML()}<div class="head"><div><h2>${title}</h2><div class="note">تاريخ الطباعة: ${new Date().toLocaleString("ar-LY")}${dateRange ? `<br>الفترة: ${dateRange}` : ""}</div></div><div class="note">عدد الطلبات: <b>${requests.length}</b></div></div><table><thead><tr><th>#</th><th>المرجع</th><th>الرقم الوطني</th><th>الاسم</th><th>السبب</th><th>رقم القرار</th><th>بواسطة</th><th>تاريخ الطلب</th><th>الحالة</th><th>ملاحظة المدير</th><th>تاريخ القرار</th></tr></thead><tbody>${rows}</tbody></table>${getFooterHTML()}<button class="no-print" onclick="window.print()">طباعة</button></body></html>`);
+function printDeleteRequestReport(req: DeleteRequest) {
+  const w = window.open("", "_blank", "width=800,height=600");
+  if (!w) return;
+  w.document.write(`<!doctype html><html dir="rtl"><head><meta charset="UTF-8"><title>طلب حذف - ${req.employeeName}</title><style>body{font-family:Tahoma;padding:20px}.card{border:2px solid #1e3a8a;padding:20px;border-radius:10px}.row{display:flex;justify-content:space-between;margin:10px 0;border-bottom:1px solid #eee;padding-bottom:5px}.label{font-weight:bold;color:#555}.val{color:#000}@media print{.no-print{display:none}}</style></head><body>${getHeaderHTML()}<div class="card"><h2 style="text-align:center;color:#1e3a8a">تفاصيل طلب حذف موظف</h2><div class="row"><span class="label">رقم الطلب:</span><span class="val">${req.refNum}</span></div><div class="row"><span class="label">الموظف:</span><span class="val">${req.employeeName}</span></div><div class="row"><span class="label">الرقم الوطني:</span><span class="val" dir="ltr">${req.nationalNumber}</span></div><div class="row"><span class="label">السبب:</span><span class="val">${req.reason}</span></div><div class="row"><span class="label">رقم القرار:</span><span class="val">${req.docNumber || '-'}</span></div><div class="row"><span class="label">تاريخ القرار:</span><span class="val">${req.docDate || '-'}</span></div><div class="row"><span class="label">الحالة:</span><span class="val">${req.status}</span></div><div class="row"><span class="label">ملاحظة المدير:</span><span class="val">${req.adminNote || '-'}</span></div></div>${getFooterHTML()}<button class="no-print" onclick="window.print()" style="position:fixed;bottom:20px;left:20px;padding:10px;background:#1e3a8a;color:white;border:none;border-radius:5px">طباعة</button></body></html>`);
   w.document.close();
 }
 
@@ -25,6 +17,8 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [actionModal, setActionModal] = useState<{ request: DeleteRequest; type: "approve" | "reject" } | null>(null);
+  const [editModal, setEditModal] = useState<DeleteRequest | null>(null);
+  const [viewModal, setViewModal] = useState<DeleteRequest | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showCleanModal, setShowCleanModal] = useState(false);
@@ -35,14 +29,14 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
     if (!confirm(`هل أنت متأكد من حذف الطلبات المعالجة (مقبول/مرفوض) الأقدم من ${cleanMonths} شهر؟`)) return;
     setCleaning(true);
     try {
-      const result = await cleanDeleteRequests(cleanMonths, true);
+      const result = await cleanDeleteRequests(cleanMonths);
       if (result.status === "success") {
         addLog(session, "clean_archive", `تنظيف طلبات الحذف القديمة (${cleanMonths} شهر)`);
-        alert("✅ تم تنظيف الطلبات القديمة بنجاح");
+        alert("✅ " + (result.message || "تم التنظيف"));
         setShowCleanModal(false);
-        setTimeout(() => { window.location.reload(); }, 1500);
-      }
-    } catch { alert("❌ فشل التنظيف"); }
+        setTimeout(() => { load(); }, 1000);
+      } else { alert("❌ " + (result.message || "فشل التنظيف")); }
+    } catch { alert("❌ فشل الاتصال"); }
     finally { setCleaning(false); }
   };
 
@@ -76,11 +70,6 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
     return res;
   }, [requests, filter, startDate, endDate]);
 
-  const dateRangeStr = useMemo(() => {
-    if (!startDate && !endDate) return "";
-    return `من ${startDate || "الأول"} إلى ${endDate || "اليوم"}`;
-  }, [startDate, endDate]);
-
   const stats = useMemo(() => ({
     total: requests.length,
     pending: requests.filter((r) => r.status === "قيد المراجعة").length,
@@ -95,14 +84,10 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-800">📋 طلبات حذف الموظفين</h2>
-          <p className="text-xs text-slate-500">مراجعة طلبات الحذف المعلقة والموافقة عليها أو رفضها</p>
+          <p className="text-xs text-slate-500">مراجعة، تعديل، وطباعة الطلبات</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => printDeleteRequestsReport(filtered, "تقرير طلبات الحذف المعروضة", dateRangeStr)} className="px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-100">🖨️ طباعة المعروض</button>
-          <button onClick={() => printDeleteRequestsReport(requests, "تقرير كامل لطلبات الحذف")} className="px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium hover:bg-slate-100">📄 طباعة الكل</button>
-          {session.permissions.canApproveDelete && (
-            <button onClick={() => setShowCleanModal(true)} className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-medium hover:bg-red-100">🧹 تنظيف القديم</button>
-          )}
+          <button onClick={() => setShowCleanModal(true)} className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-medium hover:bg-red-100">🧹 تنظيف القديم</button>
           <button onClick={load} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium hover:bg-indigo-100">🔄 تحديث</button>
         </div>
       </div>
@@ -140,15 +125,13 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
                 <th className="px-3 py-2 text-right">السبب</th>
                 <th className="px-3 py-2 text-right">رقم القرار</th>
                 <th className="px-3 py-2 text-right">تاريخ القرار</th>
-                <th className="px-3 py-2 text-right">تاريخ التقديم</th>
-                <th className="px-3 py-2 text-right">بواسطة</th>
                 <th className="px-3 py-2 text-right">الحالة</th>
                 <th className="px-3 py-2 text-right">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} className="px-3 py-12 text-center text-slate-400">لا توجد طلبات</td></tr>
+                <tr><td colSpan={8} className="px-3 py-12 text-center text-slate-400">لا توجد طلبات</td></tr>
               ) : filtered.map((req) => (
                 <tr key={req.refNum} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-mono text-[10px]" dir="ltr">{req.refNum}</td>
@@ -156,9 +139,7 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
                   <td className="px-3 py-2 font-mono text-indigo-700" dir="ltr">{req.nationalNumber}</td>
                   <td className="px-3 py-2 max-w-[150px] truncate" title={req.reason}>{req.reason}</td>
                   <td className="px-3 py-2 text-slate-600">{req.docNumber || "—"}</td>
-                  <td className="px-3 py-2 text-slate-600">{req.docDate || "—"}</td>
-                  <td className="px-3 py-2 text-slate-600 text-[10px]">{req.submitDate}</td>
-                  <td className="px-3 py-2 text-slate-600">{req.submittedBy}</td>
+                  <td className="px-3 py-2 text-slate-600 text-[10px]">{req.docDate || "—"}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                       req.status === "مقبول" ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
@@ -167,21 +148,26 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
                     }`}>{req.status}</span>
                   </td>
                   <td className="px-3 py-2">
-                    {req.status === "قيد المراجعة" && session.permissions.canApproveDelete && (
-                      <div className="flex gap-1">
-                        <button onClick={() => setActionModal({ request: req, type: "approve" })}
-                          className="text-emerald-700 hover:text-white hover:bg-emerald-600 border border-emerald-200 px-2 py-1 rounded text-[10px] font-medium transition">
-                          ✅ موافقة
-                        </button>
-                        <button onClick={() => setActionModal({ request: req, type: "reject" })}
-                          className="text-red-700 hover:text-white hover:bg-red-600 border border-red-200 px-2 py-1 rounded text-[10px] font-medium transition">
-                          ❌ رفض
-                        </button>
-                      </div>
-                    )}
-                    {req.status !== "قيد المراجعة" && req.adminNote && (
-                      <span className="text-[10px] text-slate-500" title={req.adminNote}>عرض الملاحظة</span>
-                    )}
+                    <div className="flex gap-1 flex-wrap">
+                      <button onClick={() => setViewModal(req)} className="text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 px-2 py-1 rounded text-[10px] font-medium transition">👁️ عرض</button>
+                      <button onClick={() => printDeleteRequestReport(req)} className="text-slate-700 hover:text-white hover:bg-slate-700 border border-slate-200 px-2 py-1 rounded text-[10px] font-medium transition">🖨️ طباعة</button>
+                      
+                      {req.status === "قيد المراجعة" && session.permissions.canApproveDelete && (
+                        <>
+                          <button onClick={() => setEditModal(req)} className="text-amber-700 hover:text-white hover:bg-amber-600 border border-amber-200 px-2 py-1 rounded text-[10px] font-medium transition">✏️ تعديل</button>
+                          <button onClick={() => setActionModal({ request: req, type: "approve" })} className="text-emerald-700 hover:text-white hover:bg-emerald-600 border border-emerald-200 px-2 py-1 rounded text-[10px] font-medium transition">✅ موافقة</button>
+                          <button onClick={() => setActionModal({ request: req, type: "reject" })} className="text-red-700 hover:text-white hover:bg-red-600 border border-red-200 px-2 py-1 rounded text-[10px] font-medium transition">❌ رفض</button>
+                        </>
+                      )}
+                      
+                      {(req.status === "مقبول" || req.status === "مرفوض") && session.permissions.canApproveDelete && (
+                        <button onClick={async () => {
+                          if(!confirm("حذف نهائي لهذا الطلب؟")) return;
+                          const res = await deleteDeleteRequest(req.refNum, session.fullName);
+                          if(res.status === "success") { alert("✅ " + res.message); load(); } else { alert("❌ " + res.message); }
+                        }} className="text-red-600 hover:text-white hover:bg-red-600 border border-red-200 px-2 py-1 rounded text-[10px] font-medium transition">🗑️ حذف</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -191,32 +177,57 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
       </div>
 
       {actionModal && <ActionRequestModal request={actionModal.request} type={actionModal.type} session={session} onClose={() => setActionModal(null)} onSuccess={() => { setActionModal(null); load(); }} />}
+      
+      {editModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-slate-800 mb-4">تعديل طلب حذف: {editModal.employeeName}</h3>
+            <div className="space-y-3">
+              <div><label className="text-xs text-slate-500">السبب</label><input id="edit-reason" defaultValue={editModal.reason} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="text-xs text-slate-500">رقم القرار</label><input id="edit-docNum" defaultValue={editModal.docNumber} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="text-xs text-slate-500">تاريخ القرار</label><input id="edit-docDate" type="date" defaultValue={editModal.docDate} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setEditModal(null)} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">إلغاء</button>
+              <button onClick={async () => {
+                const reason = (document.getElementById('edit-reason') as HTMLInputElement).value;
+                const docNumber = (document.getElementById('edit-docNum') as HTMLInputElement).value;
+                const docDate = (document.getElementById('edit-docDate') as HTMLInputElement).value;
+                const res = await updateDeleteRequest(editModal.refNum, { reason, docNumber, docDate }, session.fullName);
+                if(res.status === "success") { alert("✅ تم التعديل"); setEditModal(null); load(); } else { alert("❌ " + res.message); }
+              }} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm">حفظ التعديلات</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setViewModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-slate-800 mb-4">تفاصيل الطلب: {viewModal.refNum}</h3>
+            <div className="bg-slate-50 p-4 rounded-lg space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">الموظف:</span><span className="font-bold">{viewModal.employeeName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">الرقم الوطني:</span><span className="font-mono" dir="ltr">{viewModal.nationalNumber}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">السبب:</span><span>{viewModal.reason}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">رقم القرار:</span><span>{viewModal.docNumber || '-'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">تاريخ القرار:</span><span>{viewModal.docDate || '-'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">الحالة:</span><span className="font-bold">{viewModal.status}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">ملاحظة المدير:</span><span>{viewModal.adminNote || '-'}</span></div>
+            </div>
+            <button onClick={() => setViewModal(null)} className="w-full mt-4 py-2 bg-slate-100 rounded-lg text-sm">إغلاق</button>
+          </div>
+        </div>
+      )}
 
       {showCleanModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCleanModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-red-50 border-b border-red-200 px-5 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-red-800">🧹 تنظيف طلبات الحذف القديمة</h3>
-              <button onClick={() => setShowCleanModal(false)} className="p-2 hover:bg-red-100 rounded">✕</button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                ⚠️ سيتم حذف الطلبات <strong>المعالجة فقط</strong> (المقبولة والمرفوضة). الطلبات قيد المراجعة لن تُحذف.
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-                ℹ️ هذا الإجراء لتقليل حجم البيانات في الجدول. السجلات في الأرشيف تبقى محفوظة.
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 font-medium mb-1 block">احذف الطلبات الأقدم من (بالأشهر)</label>
-                <input type="number" value={cleanMonths} onChange={(e) => setCleanMonths(parseInt(e.target.value) || 6)} min="1" max="120"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" />
-              </div>
-            </div>
-            <div className="border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
-              <button onClick={() => setShowCleanModal(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm">إلغاء</button>
-              <button onClick={handleCleanRequests} disabled={cleaning} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                {cleaning ? "جاري التنظيف..." : "تأكيد الحذف"}
-              </button>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-red-800 mb-2">🧹 تنظيف الطلبات القديمة</h3>
+            <p className="text-xs text-slate-500 mb-4">سيتم حذف الطلبات المقبولة/المرفوضة الأقدم من المدة المحددة.</p>
+            <input type="number" value={cleanMonths} onChange={(e) => setCleanMonths(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg mb-4" placeholder="عدد الأشهر" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowCleanModal(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">إلغاء</button>
+              <button onClick={handleCleanRequests} disabled={cleaning} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm">{cleaning ? "جاري..." : "تأكيد الحذف"}</button>
             </div>
           </div>
         </div>
@@ -252,7 +263,7 @@ function ActionRequestModal({ request, type, session, onClose, onSuccess }: {
           window.dispatchEvent(new CustomEvent("employee-removed", { detail: { nationalNumber: request.nationalNumber } }));
         }
         alert(type === "approve" ? "✅ تم نقل الموظف إلى الأرشيف" : "✅ تم رفض الطلب");
-        printDeleteRequestsReport([{ ...request, status: type === "approve" ? "مقبول" : "مرفوض", adminNote: note, adminDate: new Date().toLocaleString("ar-LY") }], type === "approve" ? "إشعار موافقة على طلب حذف" : "إشعار رفض طلب حذف");
+        printDeleteRequestReport({ ...request, status: type === "approve" ? "مقبول" : "مرفوض", adminNote: note, adminDate: new Date().toLocaleString("ar-LY") });
         setTimeout(() => onSuccess(), 1500);
       }
     } catch { alert("فشل التنفيذ"); setDone(false); }

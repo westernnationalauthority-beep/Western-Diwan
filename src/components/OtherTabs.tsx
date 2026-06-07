@@ -13,6 +13,8 @@ export function CodesTab({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true);
   const [selectedEmp, setSelectedEmp] = useState<any | null>(null);
   const [showCodeModal, setShowCodeModal] = useState<{ emp: any; code: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const perPage = 20;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,9 +165,9 @@ export function CodesTab({ session }: { session: Session }) {
         <StatCard label="بدون كود" value={stats.noCode} color="slate" icon="❓" />
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-wrap gap-2 items-center">
-        <input type="text" placeholder="ابحث بالاسم أو الرقم الوطني..." value={search} onChange={(e) => setSearch(e.target.value)}
+        <input type="text" placeholder="ابحث بالاسم أو الرقم الوطني..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="flex-1 min-w-[200px] px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
           <option value="all">كل الحالات</option>
           <option value="active">نشط</option>
@@ -191,7 +193,7 @@ export function CodesTab({ session }: { session: Session }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.slice(0, 100).map((emp) => (
+              {filtered.slice((page - 1) * perPage, page * perPage).map((emp) => (
                 <tr key={emp.nationalNumber} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-mono text-indigo-700" dir="ltr">{emp.nationalNumber}</td>
                   <td className="px-3 py-2 font-medium">{emp.fullName}</td>
@@ -227,7 +229,12 @@ export function CodesTab({ session }: { session: Session }) {
             </tbody>
           </table>
         </div>
-        {filtered.length > 100 && <p className="text-center text-xs text-slate-500 p-3 bg-slate-50">يُعرض 100 موظف فقط. ابحث للوصول للباقي.</p>}
+        {Math.ceil(filtered.length / perPage) > 1 && (
+          <div className="border-t border-slate-200 px-4 py-2.5 flex items-center justify-between bg-slate-50/50">
+            <p className="text-[11px] text-slate-500">صفحة {page} من {Math.ceil(filtered.length / perPage)} ({filtered.length} موظف)</p>
+            <Pagination currentPage={page} totalPages={Math.ceil(filtered.length / perPage)} onChange={(p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+          </div>
+        )}
       </div>
       {showCodeModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCodeModal(null)}>
