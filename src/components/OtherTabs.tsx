@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { type Session, type User, type Permissions, type ActivityLog, type CustomField, ADMIN_PERMISSIONS, DEFAULT_EMPLOYEE_PERMISSIONS, PERMISSION_LABELS, ACTION_LABELS } from "../lib/storage";
 import { getUsers, createUser, updateUser, deleteUser, changePassword, addLog, getLogs, getUserStats, clearLogs, getCustomFields, addCustomField, deleteCustomField, toggleFieldRequired, getRequiredFieldsConfig, saveRequiredFieldsConfig } from "../lib/storage";
 import { generateRandomCode, sendCodeViaWhatsApp } from "../utils/helpers";
-import { addColumnToSheet, deleteColumnFromSheet } from "../data/employees";
+import { addColumnToSheet, deleteColumnFromSheet, getSystemInfo } from "../data/employees";
 import { StatCard, Pagination } from "./Shared";
 
 // CodesTab
@@ -693,6 +693,94 @@ export function SettingsTab({ session }: { session: Session }) {
         {err && <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg p-2">{err}</p>}
         {msg && <p className="text-emerald-600 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-center">{msg}</p>}
         <button onClick={submit} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium">تغيير كلمة المرور</button>
+      </div>
+    </div>
+  );
+}
+
+// AboutTab - شاشة حول النظام
+export function AboutTab() {
+  const [info, setInfo] = useState<{ "الإصدار": string; "المصمم": string }>({ "الإصدار": "v5", "المصمم": "S-BUTTO" });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadInfo = async () => {
+      try {
+        const data = await getSystemInfo();
+        setInfo(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInfo();
+  }, []);
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-slate-800">حول المنظومة</h2>
+        <p className="text-sm text-slate-500 mt-1">معلومات عن نظام إدارة بيانات الموظفين</p>
+      </div>
+
+      <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl shadow-xl p-8 text-white text-center">
+        <div className="text-6xl mb-4">🏛️</div>
+        <h3 className="text-2xl font-bold mb-2">نظام إدارة بيانات الموظفين</h3>
+        <p className="text-lg opacity-90">الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p>
+        <div className="mt-6 flex items-center justify-center gap-4">
+          <div className="bg-white/20 backdrop-blur rounded-xl px-6 py-3">
+            <p className="text-xs opacity-80">الإصدار الحالي</p>
+            <p className="text-2xl font-bold tracking-wider">{loading ? "..." : info["الإصدار"] || "v5"}</p>
+          </div>
+          <div className="bg-white/20 backdrop-blur rounded-xl px-6 py-3">
+            <p className="text-xs opacity-80">المصمم والمطور</p>
+            <p className="text-2xl font-bold tracking-wider">{loading ? "..." : info["المصمم"] || "S-BUTTO"}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+          <span className="text-2xl">ℹ️</span> معلومات النظام
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <p className="text-xs text-slate-500 mb-1">اسم المنظومة</p>
+            <p className="font-bold text-slate-800">منظومة بيانات موظفي ديوان الغربية</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <p className="text-xs text-slate-500 mb-1">الإصدار</p>
+            <p className="font-bold text-indigo-700">{loading ? "جاري التحميل..." : info["الإصدار"] || "v5"}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <p className="text-xs text-slate-500 mb-1">المصمم والمطور</p>
+            <p className="font-bold text-slate-800">{loading ? "جاري التحميل..." : info["المصمم"] || "S-BUTTO"}</p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <p className="text-xs text-slate-500 mb-1">الجهة</p>
+            <p className="font-bold text-slate-800">الهيئة الوطنية لمكافحة الفساد</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+          <span className="text-2xl">📋</span> مميزات المنظومة
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>إدارة بيانات الموظفين بشكل كامل</span></div>
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>تقارير وإحصائيات متقدمة</span></div>
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>نظام أكواد دخول آمن للموظفين</span></div>
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>أرشيف الموظفين مع إمكانية الاستعادة</span></div>
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>طباعة النماذج والتقارير</span></div>
+          <div className="flex items-start gap-2"><span className="text-emerald-600 mt-0.5">✅</span><span>إدارة الصلاحيات والمستخدمين</span></div>
+        </div>
+      </div>
+
+      <div className="text-center text-xs text-slate-400 pb-4">
+        <p>جميع الحقوق محفوظة © {new Date().getFullYear()} - الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p>
+        <p className="mt-1">تصميم وتطوير: <span className="font-bold text-amber-600">S-BUTTO</span></p>
       </div>
     </div>
   );

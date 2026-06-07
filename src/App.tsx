@@ -1,17 +1,17 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { type EmployeeLoginResult, API_URL, fetchEmployeesFromSheet, findEmployeeByNationalNumber } from "./data/employees";
 import { type User, type Session, ADMIN_PERMISSIONS, DEFAULT_EMPLOYEE_PERMISSIONS, findUser, getSession, setSession, addLog, getCustomFields } from "./lib/storage";
-import { generateRandomCode, openWhatsApp, sendMissingFieldsViaWhatsApp, sendCodeViaWhatsApp, ALL_FIELD_LABELS, isEmpty, getMissingFields, syncCustomFieldsFromSheet } from "./utils/helpers";
+import { generateRandomCode, isEmpty, getMissingFields } from "./utils/helpers";
 import EmployeesTab from "./components/EmployeesTab";
 import ReportsTab from "./components/ReportsTab";
 import DeleteRequestsTab from "./components/DeleteRequestsTab";
 import ArchiveTab from "./components/ArchiveTab";
-import { CodesTab, UsersTab, FieldsTab, LogsTab, SettingsTab } from "./components/OtherTabs";
+import { CodesTab, UsersTab, FieldsTab, LogsTab, SettingsTab, AboutTab } from "./components/OtherTabs";
 import { printIndividualForm } from "./components/PrintTemplates";
 
 const NACC_LOGO = "/images/nacc-logo.png";
 const LIBYA_FLAG = "/images/libya-flag.png";
-const SYSTEM_NAME = "S-BUTTO";
+const SYSTEM_NAME = "منظومة بيانات موظفي ديوان الغربية";
 
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(() => getSession());
@@ -35,7 +35,7 @@ function AuthScreen({ onLogin, onPublicView }: { onLogin: (u: User) => void; onP
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-zinc-100 flex flex-col">
       <div className="bg-white border-b-2 border-amber-500 shadow-sm"><div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-center gap-4"><img src={NACC_LOGO} alt="NACC" className="h-16 w-16 object-contain" /><div className="text-center"><div className="text-[10px] text-slate-500 letter-spacing-1">NATIONAL ANTI-CORRUPTION COMMISSION - WESTERN REGION OFFICE</div><h1 className="text-xl font-bold text-slate-900 mt-1">الهيئة الوطنية لمكافحة الفساد</h1><p className="text-sm font-semibold text-amber-700 mt-0.5">ديوان المنطقة الغربية</p></div><img src={LIBYA_FLAG} alt="ليبيا" className="h-12 w-20 object-contain border border-slate-200" /></div></div>
-      <div className="flex-1 flex items-center justify-center p-4"><div className="w-full max-w-5xl"><div className="text-center mb-6"><h2 className="text-2xl font-bold text-slate-800">نظام إدارة بيانات الموظفين</h2><p className="text-sm text-slate-600 mt-1">خاص بموظفي ديوان المنطقة الغربية - جبل نفوسة</p></div><div className="grid md:grid-cols-2 gap-5"><div className="bg-white rounded-2xl shadow-xl border-2 border-emerald-100 overflow-hidden"><div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-3 text-white"><div className="flex items-center gap-2"><span className="text-xl">👤</span><div><h3 className="font-bold text-sm">الموظفين</h3><p className="text-[10px] opacity-90">عرض بياناتك الشخصية</p></div></div></div><div className="p-5"><label className="flex items-start gap-3 cursor-pointer mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition"><input type="checkbox" checked={isEmployeeMode} onChange={(e) => setIsEmployeeMode(e.target.checked)} className="w-5 h-5 mt-0.5 accent-emerald-600" /><div><p className="font-bold text-slate-800 text-sm">أنا موظف</p><p className="text-[11px] text-slate-600 mt-0.5">أريد عرض بياناتي الشخصية فقط</p></div></label>{isEmployeeMode ? (<EmployeeSearchForm onFound={onPublicView} />) : (<div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center"><div className="text-3xl mb-2">🔍</div><p className="text-xs text-slate-500">ضع علامة ✓ على "أنا موظف" أعلاه<br />ثم أدخل رقمك الوطني للبحث</p></div>)}</div></div><div className="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 overflow-hidden"><div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-white"><div className="flex items-center gap-2"><span className="text-xl">🔐</span><div><h3 className="font-bold text-sm">الإدارة</h3><p className="text-[10px] opacity-90">دخول الإدارة والمصرحين</p></div></div></div><div className="p-5"><AdminLoginForm onLogin={onLogin} /></div></div></div></div></div>
+      <div className="flex-1 flex items-center justify-center p-4"><div className="w-full max-w-5xl"><div className="text-center mb-6"><h2 className="text-2xl font-bold text-slate-800">منظومة بيانات موظفي ديوان الغربية</h2><p className="text-sm text-slate-600 mt-1">خاص بموظفي ديوان المنطقة الغربية - جبل نفوسة</p></div><div className="grid md:grid-cols-2 gap-5"><div className="bg-white rounded-2xl shadow-xl border-2 border-emerald-100 overflow-hidden"><div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-3 text-white"><div className="flex items-center gap-2"><span className="text-xl">👤</span><div><h3 className="font-bold text-sm">الموظفين</h3><p className="text-[10px] opacity-90">عرض بياناتك الشخصية</p></div></div></div><div className="p-5"><label className="flex items-start gap-3 cursor-pointer mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition"><input type="checkbox" checked={isEmployeeMode} onChange={(e) => setIsEmployeeMode(e.target.checked)} className="w-5 h-5 mt-0.5 accent-emerald-600" /><div><p className="font-bold text-slate-800 text-sm">أنا موظف</p><p className="text-[11px] text-slate-600 mt-0.5">أريد عرض بياناتي الشخصية فقط</p></div></label>{isEmployeeMode ? (<EmployeeSearchForm onFound={onPublicView} />) : (<div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center"><div className="text-3xl mb-2">🔍</div><p className="text-xs text-slate-500">ضع علامة ✓ على "أنا موظف" أعلاه<br />ثم أدخل رقمك الوطني للبحث</p></div>)}</div></div><div className="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 overflow-hidden"><div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-white"><div className="flex items-center gap-2"><span className="text-xl">🔐</span><div><h3 className="font-bold text-sm">الإدارة</h3><p className="text-[10px] opacity-90">دخول الإدارة والمصرحين</p></div></div></div><div className="p-5"><AdminLoginForm onLogin={onLogin} /></div></div></div></div></div>
       <footer className="bg-slate-900 text-white py-3"><div className="max-w-5xl mx-auto px-4 text-center"><p className="text-xs"><span className="opacity-70">تصميم وتطوير المنظومة:</span><span className="font-bold mr-2 text-amber-400 tracking-wider">{SYSTEM_NAME}</span></p><p className="text-[10px] opacity-60 mt-1">جميع الحقوق محفوظة © {new Date().getFullYear()} - الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p></div></footer>
     </div>
   );
@@ -118,7 +118,7 @@ function DataSection({ title, color, rows }: { title: string; color: string; row
   return (<div><div className={`${colors[color]} text-white px-3 py-1.5 rounded-t-lg text-xs font-bold`}>{title}</div><div className="border border-slate-200 border-t-0 rounded-b-lg overflow-hidden">{rows.map((row, i) => { const label = row[0] as string; const value = row[1] as string; const mono = row[2] as boolean; const empty = isEmpty(value); return (<div key={i} className={`grid grid-cols-3 gap-2 px-3 py-2 ${i % 2 === 0 ? "bg-slate-50" : "bg-white"} border-b border-slate-100 last:border-b-0`}><span className="text-xs text-slate-500">{label}</span><span className={`col-span-2 text-sm ${empty ? "text-red-500 italic" : "text-slate-800"} ${mono && !empty ? "font-mono" : ""}`} dir={mono && !empty ? "ltr" : undefined}>{empty ? "— لم يتم تسجيله —" : value}</span></div>); })}</div></div>);
 }
 
-type TabName = "employees" | "reports" | "codes" | "delete_requests" | "archive" | "users" | "logs" | "fields" | "settings";
+type TabName = "employees" | "reports" | "codes" | "delete_requests" | "archive" | "users" | "logs" | "fields" | "settings" | "about";
 
 function Dashboard({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const [tab, setTab] = useState<TabName>("employees");
@@ -136,8 +136,9 @@ function Dashboard({ session, onLogout }: { session: Session; onLogout: () => vo
         {tab === "logs" && perms.canViewLogs && <LogsTab />}
         {tab === "fields" && perms.canAddFields && <FieldsTab session={session} />}
         {tab === "settings" && <SettingsTab session={session} />}
+        {tab === "about" && <AboutTab />}
       </main>
-      <footer className="border-t border-slate-200 bg-slate-900 text-white mt-6 py-3"><div className="max-w-7xl mx-auto px-4 text-center space-y-1"><p className="text-xs"><span className="opacity-70">نظام إدارة بيانات موظفي ديوان المنطقة الغربية</span><span className="mx-2 opacity-50">|</span><span className="opacity-70">تصميم:</span><span className="font-bold mr-1 text-amber-400 tracking-wider">{SYSTEM_NAME}</span></p><p className="text-[10px] opacity-50">© {new Date().getFullYear()} الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p></div></footer>
+      <footer className="border-t border-slate-200 bg-slate-900 text-white mt-6 py-3"><div className="max-w-7xl mx-auto px-4 text-center space-y-1"><p className="text-xs"><span className="opacity-70">منظومة بيانات موظفي ديوان الغربية</span><span className="mx-2 opacity-50">|</span><span className="opacity-70">تصميم وتطوير:</span><span className="font-bold mr-1 text-amber-400 tracking-wider">S-BUTTO</span></p><p className="text-[10px] opacity-50">© {new Date().getFullYear()} الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p></div></footer>
     </div>
   );
 }
@@ -147,8 +148,37 @@ function DashboardHeader({ session, onLogout, tab, setTab }: { session: Session;
   const [pendingDeletes, setPendingDeletes] = useState(0);
   useEffect(() => { if (!perms.canApproveDelete) return; let mounted = true; const loadPending = async () => { const { getDeleteRequests } = await import("./data/employees"); const requests = await getDeleteRequests(); if (mounted) setPendingDeletes(requests.filter((r: any) => r.status === "قيد المراجعة").length); }; loadPending(); const timer = window.setInterval(loadPending, 15000); window.addEventListener("delete-requests-changed", loadPending); return () => { mounted = false; window.clearInterval(timer); window.removeEventListener("delete-requests-changed", loadPending); }; }, [perms.canApproveDelete]);
   return (
-    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><img src={NACC_LOGO} alt="NACC" className="h-12 w-12 object-contain" /><div><h1 className="text-base font-bold text-slate-900">{session.role === "admin" ? "لوحة تحكم المدير" : "نظام إدارة الموظفين"}</h1><p className="text-[11px] text-slate-500">الهيئة الوطنية لمكافحة الفساد - ديوان المنطقة الغربية</p></div></div><div className="flex items-center gap-2"><div className="text-left ml-2 hidden sm:block"><p className="text-xs font-bold text-slate-700">{session.fullName}</p><p className="text-[10px] text-slate-400">{session.role === "admin" ? "👑 مدير" : "👤 موظف"} • @{session.username}</p></div><button onClick={onLogout} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-medium flex items-center gap-1"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>خروج</button></div></div><div className="flex gap-1 mt-3 -mb-3 overflow-x-auto"><TabBtn active={tab === "employees"} onClick={() => setTab("employees")} icon="👥">الموظفين</TabBtn><TabBtn active={tab === "reports"} onClick={() => setTab("reports")} icon="📈">التقارير</TabBtn>{perms.canManageUsers && <TabBtn active={tab === "codes"} onClick={() => setTab("codes")} icon="🔑">أكواد الموظفين</TabBtn>}{(perms.canRequestDelete || perms.canApproveDelete) && <TabBtn active={tab === "delete_requests"} onClick={() => setTab("delete_requests")} icon="📋">طلبات الحذف {pendingDeletes > 0 && <span className="mr-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{pendingDeletes}</span>}</TabBtn>}{(perms.canViewArchive || perms.canRestoreArchive) && <TabBtn active={tab === "archive"} onClick={() => setTab("archive")} icon="🗄️">أرشيف الموظفين</TabBtn>}{perms.canManageUsers && <TabBtn active={tab === "users"} onClick={() => setTab("users")} icon="🔐">المستخدمين</TabBtn>}{perms.canViewLogs && <TabBtn active={tab === "logs"} onClick={() => setTab("logs")} icon="📊">السجلات</TabBtn>}{perms.canAddFields && <TabBtn active={tab === "fields"} onClick={() => setTab("fields")} icon="➕">الحقول المخصصة</TabBtn>}<TabBtn active={tab === "settings"} onClick={() => setTab("settings")} icon="⚙️">الإعدادات</TabBtn></div></div></header>
+    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <img src={NACC_LOGO} alt="NACC" className="h-12 w-12 object-contain" />
+            <div><h1 className="text-base font-bold text-slate-900">{session.role === "admin" ? "لوحة تحكم المدير" : "منظومة بيانات موظفي ديوان الغربية"}</h1><p className="text-[11px] text-slate-500">ديوان المنطقة الغربية - جبل نفوسة</p></div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-left ml-2 hidden sm:block"><p className="text-xs font-bold text-slate-700">{session.fullName}</p><p className="text-[10px] text-slate-400">{session.role === "admin" ? "👑 مدير" : "👤 موظف"} • @{session.username}</p></div>
+            <button onClick={onLogout} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-medium flex items-center gap-1">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>خروج
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-1 mt-3 -mb-3 overflow-x-auto">
+          <TabBtn active={tab === "employees"} onClick={() => setTab("employees")} icon="👥">الموظفين</TabBtn>
+          <TabBtn active={tab === "reports"} onClick={() => setTab("reports")} icon="📈">التقارير</TabBtn>
+          {perms.canManageUsers && <TabBtn active={tab === "codes"} onClick={() => setTab("codes")} icon="🔑">أكواد الموظفين</TabBtn>}
+          {(perms.canRequestDelete || perms.canApproveDelete) && <TabBtn active={tab === "delete_requests"} onClick={() => setTab("delete_requests")} icon="📋">طلبات الحذف {pendingDeletes > 0 && <span className="mr-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{pendingDeletes}</span>}</TabBtn>}
+          {(perms.canViewArchive || perms.canRestoreArchive) && <TabBtn active={tab === "archive"} onClick={() => setTab("archive")} icon="🗄️">أرشيف الموظفين</TabBtn>}
+          {perms.canManageUsers && <TabBtn active={tab === "users"} onClick={() => setTab("users")} icon="🔐">المستخدمين</TabBtn>}
+          {perms.canViewLogs && <TabBtn active={tab === "logs"} onClick={() => setTab("logs")} icon="📊">السجلات</TabBtn>}
+          {perms.canAddFields && <TabBtn active={tab === "fields"} onClick={() => setTab("fields")} icon="➕">الحقول المخصصة</TabBtn>}
+          <TabBtn active={tab === "settings"} onClick={() => setTab("settings")} icon="⚙️">الإعدادات</TabBtn>
+          <TabBtn active={tab === "about"} onClick={() => setTab("about")} icon="ℹ️">حول النظام</TabBtn>
+        </div>
+      </div>
+    </header>
   );
 }
 
-function TabBtn({ children, active, onClick, icon }: { children: React.ReactNode; active: boolean; onClick: () => void; icon: string }) { return (<button onClick={onClick} className={`px-4 py-2 text-xs font-medium border-b-2 transition whitespace-nowrap flex items-center gap-1.5 ${active ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}><span>{icon}</span><span>{children}</span></button>); }
+function TabBtn({ children, active, onClick, icon }: { children: React.ReactNode; active: boolean; onClick: () => void; icon: string }) {
+  return (<button onClick={onClick} className={`px-4 py-2 text-xs font-medium border-b-2 transition whitespace-nowrap flex items-center gap-1.5 ${active ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}><span>{icon}</span><span>{children}</span></button>);
+}

@@ -26,8 +26,24 @@ export interface Employee {
   gender: string;
 }
 
-export const API_URL = "https://script.google.com/macros/s/AKfycbwQAfJ_ibCwoqXF7LjyyHprR6ilok_m2IAJeGzmP-eZA47freXo2emfobMZKaDcW55v-Q/exec";
+export const API_URL = "https://script.google.com/macros/s/AKfycbwFU1zHi8YRWS77J2ajUWpircsYjqrnJ2IvQmKwnSJHizTUrxHNiCGx49S8ORcAe8XjMA/exec";
 export const INITIAL_CODE = "NACC2026";
+
+export async function getSystemInfo(): Promise<any> {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "get_system_info" })
+    });
+    const text = await res.text();
+    const json = JSON.parse(text);
+    return json.info || { "الإصدار": "v5", "المصمم": "S-BUTTO" };
+  } catch (e) {
+    console.error("Failed to fetch system info", e);
+    return { "الإصدار": "v5", "المصمم": "S-BUTTO" };
+  }
+}
 
 /* ============================================================
    Employee Login API

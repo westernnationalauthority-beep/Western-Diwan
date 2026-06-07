@@ -1,6 +1,6 @@
 const NACC_LOGO = "/images/nacc-logo.png";
 const LIBYA_FLAG = "/images/libya-flag.png";
-const SYSTEM_NAME = "S-BUTTO";
+const SYSTEM_NAME = "منظومة بيانات موظفي ديوان الغربية";
 
 // Mock getMissingFields and getCustomFields to avoid circular deps, they will be passed or imported properly in App.tsx
 // For now, we assume they are available or we pass them. 

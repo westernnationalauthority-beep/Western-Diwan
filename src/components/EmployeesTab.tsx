@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, requestEmployeeDelete, getDeleteRequests, DELETE_REASONS } from "../data/employees";
+import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, requestEmployeeDelete, getDeleteRequests } from "../data/employees";
 import { addLog, getCustomFields, type CustomField, type Session, mergeAllEmployees } from "../lib/storage";
 import { isEmpty, getMissingFields, openWhatsApp, sendMissingFieldsViaWhatsApp, ALL_FIELD_LABELS } from "../utils/helpers";
 import { StatCard, Th, SortIcon, PageBtn, Pagination, getStatusBadge, getDataCompleteBadge } from "./Shared";
@@ -216,19 +216,16 @@ export default function EmployeesTab({ session }: { session: Session }) {
   );
 }
 
-function DeleteRequestModal({ employee, session, onClose, onSuccess }: {
-  employee: any; session: Session; onClose: () => void; onSuccess: () => void;
-}) {
+function DeleteRequestModal({ employee, session, onClose, onSuccess }: { employee: any; session: Session; onClose: () => void; onSuccess: () => void }) {
+  const DELETE_REASONS = ["نقل لجهة أخرى", "استقالة", "تقاعد", "وفاة", "فصل", "انتهاء عقد", "أخرى"];
   const [reason, setReason] = useState(DELETE_REASONS[0]);
   const [otherReason, setOtherReason] = useState("");
   const [docNumber, setDocNumber] = useState("");
   const [docDate, setDocDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
   const submit = async () => {
-    if (submitted || submitting) return;
     setError("");
     const finalReason = reason === "أخرى" ? otherReason.trim() : reason;
     if (!finalReason) { setError("يرجى اختيار أو كتابة سبب الحذف"); return; }
@@ -236,27 +233,22 @@ function DeleteRequestModal({ employee, session, onClose, onSuccess }: {
     if (!docDate) { setError("يرجى إدخال تاريخ القرار"); return; }
     setSubmitting(true);
     try {
-      const existing = await getDeleteRequests();
-      const duplicate = existing.find((r: any) =>
-        r.nationalNumber.replace(/[^\d]/g, "") === (employee.nationalNumber || "").replace(/[^\d]/g, "") &&
-        r.status === "قيد المراجعة"
-      );
-      if (duplicate) {
-        setError(`يوجد طلب حذف قائم بالفعل لهذا الموظف. رقم الطلب: ${duplicate.refNum}`);
-        setSubmitting(false);
-        return;
-      }
-      setSubmitted(true);
-      await requestEmployeeDelete({
+      const ok = await requestEmployeeDelete({
         nationalNumber: employee.nationalNumber,
         employeeName: employee.fullName,
         reason: finalReason,
         docNumber, docDate,
         submittedBy: session.fullName,
       });
-      window.dispatchEvent(new Event("delete-requests-changed"));
-      onSuccess();
-    } catch { setError("فشل الاتصال"); setSubmitted(false); }
+      if (ok) {
+        addLog(session, "delete_user", `طلب حذف موظف: ${employee.fullName} (${employee.nationalNumber}) - السبب: ${finalReason}`);
+        window.dispatchEvent(new Event("delete-requests-changed"));
+        alert("✅ تم تقديم طلب الحذف بنجاح. سيتم مراجعته من قبل المدير العام.");
+        onSuccess();
+      } else {
+        setError("فشل الاتصال. حاول مرة أخرى.");
+      }
+    } catch { setError("فشل الاتصال. حاول مرة أخرى."); }
     finally { setSubmitting(false); }
   };
 
@@ -273,51 +265,48 @@ function DeleteRequestModal({ employee, session, onClose, onSuccess }: {
           </div>
           <button onClick={onClose} className="p-2 hover:bg-red-100 rounded">✕</button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-3">
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-            <p className="text-xs text-slate-500 font-bold mb-1">الموظف المراد حذفه:</p>
-            <p className="font-bold text-slate-800 text-base">{employee.fullName}</p>
+            <p className="text-xs text-slate-500">الموظف</p>
+            <p className="font-bold text-slate-800">{employee.fullName}</p>
             <p className="text-xs text-slate-500 font-mono mt-1" dir="ltr">{employee.nationalNumber}</p>
           </div>
 
           <div>
-            <label className="text-xs text-slate-600 font-bold mb-1 block">سبب الحذف <span className="text-red-500">*</span></label>
-            <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-red-500 outline-none transition">
+            <label className="text-xs text-slate-600 font-medium mb-1 block">سبب الحذف <span className="text-red-500">*</span></label>
+            <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 outline-none">
               {DELETE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
 
           {reason === "أخرى" && (
-            <div className="animate-in fade-in duration-300">
-              <label className="text-xs text-slate-600 font-bold mb-1 block">اكتب السبب التفصيلي <span className="text-red-500">*</span></label>
-              <textarea value={otherReason} onChange={(e) => setOtherReason(e.target.value)} rows={2} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="اكتب سبب الحذف..." />
+            <div>
+              <label className="text-xs text-slate-600 font-medium mb-1 block">اكتب السبب <span className="text-red-500">*</span></label>
+              <textarea value={otherReason} onChange={(e) => setOtherReason(e.target.value)} rows={2} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="اكتب سبب الحذف..." />
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-slate-600 font-bold mb-1 block">رقم القرار/المستند <span className="text-red-500">*</span></label>
-              <input type="text" value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition" placeholder="مثال: 123/2026" />
+              <label className="text-xs text-slate-600 font-medium mb-1 block">رقم القرار/المستند <span className="text-red-500">*</span></label>
+              <input type="text" value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="مثال: 123/2026" />
             </div>
             <div>
-              <label className="text-xs text-slate-600 font-bold mb-1 block">تاريخ القرار <span className="text-red-500">*</span></label>
-              <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition" />
+              <label className="text-xs text-slate-600 font-medium mb-1 block">تاريخ القرار <span className="text-red-500">*</span></label>
+              <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none" />
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex gap-2 items-start">
-            <span className="text-blue-500">ℹ️</span>
-            <p className="text-[10px] text-blue-700 leading-relaxed">
-              جميع الحقول المؤشرة بـ (*) إلزامية لتوثيق حركة الموظف إدارياً. سيتم تحويل الطلب للمراجعة النهائية.
-            </p>
-          </div>
+          {error && <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 text-center">{error}</div>}
 
-          {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 text-center font-medium animate-bounce">{error}</div>}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+            ⚠️ تنبيه: الموظف لن يُحذف فوراً. سيتم إرسال طلبك للمدير العام للموافقة، ثم سيُنقل إلى أرشيف الموظفين (لا حذف نهائي).
+          </div>
         </div>
-        <div className="border-t border-slate-200 px-5 py-4 flex justify-end gap-2 bg-slate-50 rounded-b-2xl">
-          <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-sm font-medium transition">إلغاء</button>
-          <button onClick={submit} disabled={submitting || submitted} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-200 transition disabled:opacity-50 disabled:cursor-not-allowed">
-            {submitted ? "✅ تم إرسال الطلب" : submitting ? "⏳ جاري الإرسال..." : "📤 إرسال طلب الحذف"}
+        <div className="border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm">إلغاء</button>
+          <button onClick={submit} disabled={submitting} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">
+            {submitting ? "⏳ جاري الإرسال..." : "📤 إرسال الطلب"}
           </button>
         </div>
       </div>
