@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { type Session } from "../lib/storage";
-import { type DeleteRequest, getDeleteRequests, approveDeleteRequest, rejectDeleteRequest, cleanDeleteRequests, updateDeleteRequest, deleteDeleteRequest } from "../data/employees";
+import { type DeleteRequest, getDeleteRequests, approveDeleteRequest, rejectDeleteRequest, updateDeleteRequest, deleteDeleteRequest } from "../data/employees";
 import { addLog } from "../lib/storage";
 import { StatCard } from "./Shared";
 import { getHeaderHTML, getFooterHTML } from "./PrintTemplates";
@@ -21,25 +21,6 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
   const [viewModal, setViewModal] = useState<DeleteRequest | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [showCleanModal, setShowCleanModal] = useState(false);
-  const [cleanMonths, setCleanMonths] = useState(6);
-  const [cleaning, setCleaning] = useState(false);
-
-  const handleCleanRequests = async () => {
-    if (!confirm(`هل أنت متأكد من حذف الطلبات المعالجة (مقبول/مرفوض) الأقدم من ${cleanMonths} شهر؟`)) return;
-    setCleaning(true);
-    try {
-      const result = await cleanDeleteRequests(cleanMonths);
-      if (result.status === "success") {
-        addLog(session, "clean_archive", `تنظيف طلبات الحذف القديمة (${cleanMonths} شهر)`);
-        alert("✅ " + (result.message || "تم التنظيف"));
-        setShowCleanModal(false);
-        setTimeout(() => { load(); }, 1000);
-      } else { alert("❌ " + (result.message || "فشل التنظيف")); }
-    } catch { alert("❌ فشل الاتصال"); }
-    finally { setCleaning(false); }
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -87,7 +68,6 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
           <p className="text-xs text-slate-500">مراجعة، تعديل، وطباعة الطلبات</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowCleanModal(true)} className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-medium hover:bg-red-100">🧹 تنظيف القديم</button>
           <button onClick={load} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium hover:bg-indigo-100">🔄 تحديث</button>
         </div>
       </div>
@@ -215,20 +195,6 @@ export default function DeleteRequestsTab({ session }: { session: Session }) {
               <div className="flex justify-between"><span className="text-slate-500">ملاحظة المدير:</span><span>{viewModal.adminNote || '-'}</span></div>
             </div>
             <button onClick={() => setViewModal(null)} className="w-full mt-4 py-2 bg-slate-100 rounded-lg text-sm">إغلاق</button>
-          </div>
-        </div>
-      )}
-
-      {showCleanModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCleanModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-red-800 mb-2">🧹 تنظيف الطلبات القديمة</h3>
-            <p className="text-xs text-slate-500 mb-4">سيتم حذف الطلبات المقبولة/المرفوضة الأقدم من المدة المحددة.</p>
-            <input type="number" value={cleanMonths} onChange={(e) => setCleanMonths(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg mb-4" placeholder="عدد الأشهر" />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowCleanModal(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">إلغاء</button>
-              <button onClick={handleCleanRequests} disabled={cleaning} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm">{cleaning ? "جاري..." : "تأكيد الحذف"}</button>
-            </div>
           </div>
         </div>
       )}

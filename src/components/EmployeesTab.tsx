@@ -87,9 +87,9 @@ export default function EmployeesTab({ session }: { session: Session }) {
         return emp.nationalNumber.includes(term) || emp.fullName.toLowerCase().includes(term) || emp.jobNumber.includes(term) || (emp.phone || "").includes(term) || (emp.department || "").toLowerCase().includes(term) || (emp.bankName || "").toLowerCase().includes(term);
       });
     }
-    if (statusFilter) result = result.filter((e) => e.status === statusFilter);
-    if (genderFilter) result = result.filter((e) => e.gender === genderFilter);
-    if (dataCompleteFilter) result = result.filter((e) => e.dataComplete === dataCompleteFilter);
+    if (statusFilter) result = result.filter((e) => (e.status || "").trim() === statusFilter);
+    if (genderFilter) result = result.filter((e) => (e.gender || "").trim() === genderFilter);
+    if (dataCompleteFilter) result = result.filter((e) => (e.dataComplete || "").trim() === dataCompleteFilter);
     if (sortKey) result.sort((a: any, b: any) => { const va = a[sortKey] || ""; const vb = b[sortKey] || ""; return sortDir === "asc" ? String(va).localeCompare(String(vb), "ar") : String(vb).localeCompare(String(va), "ar"); });
     return result;
   }, [employees, searchTerm, searchBy, statusFilter, genderFilter, dataCompleteFilter, sortKey, sortDir]);
@@ -146,7 +146,7 @@ export default function EmployeesTab({ session }: { session: Session }) {
 
   const handlePrintIndividual = (emp: any) => { if (!perms.canPrint) { alert("ليس لديك صلاحية الطباعة"); return; } printIndividualForm(emp, getMissingFields(emp), customFields); addLog(session, "print_employee", `طباعة: ${emp.fullName} (${emp.nationalNumber})`); };
   const handlePrintAll = (data: any[], label: string) => { if (!perms.canPrint) return; printAllForms(data, getMissingFields, customFields); addLog(session, "print_all", `طباعة ${data.length} نموذج - ${label}`); setShowExportMenu(false); };
-  const handlePrintSummary = (data: any[], label: string) => { if (!perms.canPrint) return; printSummaryTable(data, employees.filter((e) => e.status === "ناقص"), (e: any) => getMissingFields(e).length); addLog(session, "print_summary", `طباعة ملخص ${data.length} - ${label}`); setShowExportMenu(false); };
+  const handlePrintSummary = (data: any[], label: string) => { if (!perms.canPrint) return; printSummaryTable(data, [], (e: any) => getMissingFields(e).length); addLog(session, "print_summary", `طباعة ملخص ${data.length} - ${label}`); setShowExportMenu(false); };
   const handleExportCSV = (data: any[], filename: string, label: string) => { if (!perms.canExport) return; exportCSV(data, filename, customFields, (e: any) => getMissingFields(e).length); addLog(session, "export_csv", `تصدير ${data.length} - ${label}`); setShowExportMenu(false); };
 
   if (loading) return (<div className="flex items-center justify-center py-20"><div className="text-center space-y-4"><div className="inline-block h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /><p className="text-slate-500">جاري التحميل...</p></div></div>);

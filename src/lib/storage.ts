@@ -53,6 +53,7 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   createdBy: string;
+  allowedDepartments?: string[]; // [] أو undefined = يرى الكل
 }
 
 /* ============== ACTIVITY LOG ============== */
@@ -84,6 +85,7 @@ export interface Session {
   role: "admin" | "employee";
   permissions: Permissions;
   loginTime: string;
+  allowedDepartments?: string[]; // [] أو undefined = يرى الكل
 }
 
 /* ============== EMPLOYEE EDIT ============== */
@@ -426,4 +428,30 @@ export function saveRequiredFieldsConfig(config: Record<string, boolean>): void 
 export function deleteCustomField(id: string): void {
   const fields = getCustomFields().filter((f) => f.id !== id);
   localStorage.setItem(KEYS.CUSTOM_FIELDS, JSON.stringify(fields));
+}
+
+/* ============================================================
+   إدارة الأقسام المسموح بها للمستخدم
+   ============================================================ */
+
+// هل المستخدم مقيّد بأقسام محددة؟
+export function isUserRestricted(user: User | Session): boolean {
+  return !!(user.allowedDepartments && user.allowedDepartments.length > 0);
+}
+
+// فلترة الموظفين حسب أقسام المستخدم
+export function filterByUserDepartments<T extends Employee>(
+  employees: T[],
+  session: Session
+): T[] {
+  if (!isUserRestricted(session)) return employees; // يرى الكل
+  const allowed = session.allowedDepartments || [];
+  return employees.filter((e) =>
+    allowed.includes(e.department || "") || allowed.includes(e.branch || "")
+  );
+}
+
+// تحديث الأقسام المسموح بها لمستخدم
+export function updateUserDepartments(id: string, departments: string[]): { ok: boolean; error?: string } {
+  return updateUser(id, { allowedDepartments: departments } as Partial<User>);
 }
