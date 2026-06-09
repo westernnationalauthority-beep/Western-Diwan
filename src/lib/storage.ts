@@ -29,17 +29,17 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: Permissions = {
 };
 
 export const PERMISSION_LABELS: Record<keyof Permissions, string> = {
-  canView: "عرض بيانات الموظفين",
-  canEdit: "تعديل وحفظ البيانات",
-  canPrint: "طباعة النماذج",
-  canExport: "تصدير CSV",
-  canManageUsers: "إدارة المستخدمين",
-  canViewLogs: "عرض سجل النشاطات",
-  canAddFields: "إضافة حقول مخصصة",
+  canView:          "عرض بيانات الموظفين",
+  canEdit:          "تعديل وحفظ البيانات",
+  canPrint:         "طباعة النماذج",
+  canExport:        "تصدير CSV",
+  canManageUsers:   "إدارة المستخدمين",
+  canViewLogs:      "عرض سجل النشاطات",
+  canAddFields:     "إضافة حقول مخصصة",
   canRequestDelete: "طلب حذف موظف",
   canApproveDelete: "الموافقة على طلبات الحذف",
-  canViewArchive: "عرض أرشيف الموظفين",
-  canRestoreArchive: "استعادة موظف من الأرشيف",
+  canViewArchive:   "عرض أرشيف الموظفين",
+  canRestoreArchive:"استعادة موظف من الأرشيف",
 };
 
 /* ============== USER ============== */
@@ -53,7 +53,9 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   createdBy: string;
-  allowedDepartments?: string[]; // [] أو undefined = يرى الكل
+  // ✅ جديد: الأقسام المسموح لهذا المستخدم برؤيتها
+  // [] أو undefined = يرى الكل (للمدير والمستخدمين غير المقيّدين)
+  allowedDepartments?: string[];
 }
 
 /* ============== ACTIVITY LOG ============== */
@@ -85,13 +87,14 @@ export interface Session {
   role: "admin" | "employee";
   permissions: Permissions;
   loginTime: string;
-  allowedDepartments?: string[]; // [] أو undefined = يرى الكل
+  // ✅ جديد: الأقسام المسموح بها في الجلسة
+  allowedDepartments?: string[];
 }
 
 /* ============== EMPLOYEE EDIT ============== */
 export interface EmployeeEdit {
   nationalNumber: string;
-  overrides: Record<string, string>; // field key -> value
+  overrides: Record<string, string>;
   editedBy: string;
   editedByName: string;
   editedAt: string;
@@ -100,19 +103,20 @@ export interface EmployeeEdit {
 /* ============== CUSTOM FIELD ============== */
 export interface CustomField {
   id: string;
-  key: string; // e.g. "field_custom_1"
-  label: string; // Arabic label
-  isRequired: boolean; // true = يُحسب من النواقص
+  key: string;
+  label: string;
+  isRequired: boolean;
   createdBy: string;
   createdAt: string;
+  source?: string;
 }
 
 /* ============== KEYS ============== */
 const KEYS = {
-  USERS: "nacc_users_v2",
-  LOGS: "nacc_activity_logs_v2",
-  SESSION: "nacc_current_session_v2",
-  EDITS: "nacc_employee_edits_v1",
+  USERS:         "nacc_users_v2",
+  LOGS:          "nacc_activity_logs_v2",
+  SESSION:       "nacc_current_session_v2",
+  EDITS:         "nacc_employee_edits_v1",
   CUSTOM_FIELDS: "nacc_custom_fields_v1",
 };
 
@@ -126,6 +130,7 @@ const DEFAULT_ADMIN: User = {
   isActive: true,
   createdAt: new Date().toISOString(),
   createdBy: "system",
+  allowedDepartments: [], // المدير يرى الكل
 };
 
 function normalizePermissions(role: "admin" | "employee", permissions?: Partial<Permissions>): Permissions {
@@ -141,12 +146,16 @@ export function getUsers(): User[] {
     const raw = localStorage.getItem(KEYS.USERS);
     if (!raw) return initializeUsers();
     const users: User[] = JSON.parse(raw);
-    // Migrate old users without permissions
     let changed = false;
     users.forEach((u) => {
       const normalized = normalizePermissions(u.role, u.permissions);
       if (JSON.stringify(normalized) !== JSON.stringify(u.permissions)) {
         u.permissions = normalized;
+        changed = true;
+      }
+      // migrate: إضافة allowedDepartments للمستخدمين القدامى
+      if (u.allowedDepartments === undefined) {
+        u.allowedDepartments = [];
         changed = true;
       }
     });
@@ -170,19 +179,29 @@ export function saveUsers(users: User[]): void {
 
 export function findUser(username: string, password: string): User | null {
   const users = getUsers();
-  return users.find((u) => u.username.toLowerCase() === username.toLowerCase().trim() && u.password === password && u.isActive) || null;
+  return users.find(
+    (u) => u.username.toLowerCase() === username.toLowerCase().trim()
+      && u.password === password
+      && u.isActive
+  ) || null;
 }
 
-export function createUser(data: Omit<User, "id" | "createdAt">, createdBy: string): { ok: boolean; error?: string } {
+export function createUser(
+  data: Omit<User, "id" | "createdAt">,
+  createdBy: string
+): { ok: boolean; error?: string } {
   const users = getUsers();
-  if (users.some((u) => u.username.toLowerCase() === data.username.toLowerCase().trim())) {
+  if (users.some((u) => u.username.toLowerCase() === data.username.toLowerCase().trim()))
     return { ok: false, error: "اسم المستخدم موجود بالفعل" };
-  }
-  if (!data.username.trim() || data.username.trim().length < 3) return { ok: false, error: "اسم المستخدم يجب أن يكون 3 أحرف على الأقل" };
-  if (!data.password || data.password.length < 4) return { ok: false, error: "كلمة المرور يجب أن تكون 4 أحرف على الأقل" };
-  if (!data.fullName.trim()) return { ok: false, error: "الاسم الكامل مطلوب" };
+  if (!data.username.trim() || data.username.trim().length < 3)
+    return { ok: false, error: "اسم المستخدم يجب أن يكون 3 أحرف على الأقل" };
+  if (!data.password || data.password.length < 4)
+    return { ok: false, error: "كلمة المرور يجب أن تكون 4 أحرف على الأقل" };
+  if (!data.fullName.trim())
+    return { ok: false, error: "الاسم الكامل مطلوب" };
   users.push({
     ...data,
+    allowedDepartments: data.allowedDepartments || [],
     id: "u_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
     createdAt: new Date().toISOString(),
     createdBy,
@@ -191,18 +210,22 @@ export function createUser(data: Omit<User, "id" | "createdAt">, createdBy: stri
   return { ok: true };
 }
 
-export function updateUser(id: string, updates: Partial<Omit<User, "id" | "createdAt" | "createdBy">>): { ok: boolean; error?: string } {
+export function updateUser(
+  id: string,
+  updates: Partial<Omit<User, "id" | "createdAt" | "createdBy">>
+): { ok: boolean; error?: string } {
   const users = getUsers();
   const idx = users.findIndex((u) => u.id === id);
   if (idx === -1) return { ok: false, error: "المستخدم غير موجود" };
   if (updates.username && updates.username !== users[idx].username) {
-    if (users.some((u) => u.id !== id && u.username.toLowerCase() === updates.username!.toLowerCase().trim())) {
+    if (users.some((u) => u.id !== id && u.username.toLowerCase() === updates.username!.toLowerCase().trim()))
       return { ok: false, error: "اسم المستخدم موجود بالفعل" };
-    }
   }
   users[idx] = { ...users[idx], ...updates };
-  // If role changed to admin, give admin permissions
-  if (updates.role === "admin") users[idx].permissions = ADMIN_PERMISSIONS;
+  if (updates.role === "admin") {
+    users[idx].permissions = ADMIN_PERMISSIONS;
+    users[idx].allowedDepartments = []; // المدير يرى الكل
+  }
   saveUsers(users);
   return { ok: true };
 }
@@ -219,7 +242,11 @@ export function deleteUser(id: string): { ok: boolean; error?: string } {
   return { ok: true };
 }
 
-export function changePassword(id: string, oldPassword: string, newPassword: string): { ok: boolean; error?: string } {
+export function changePassword(
+  id: string,
+  oldPassword: string,
+  newPassword: string
+): { ok: boolean; error?: string } {
   const users = getUsers();
   const user = users.find((u) => u.id === id);
   if (!user) return { ok: false, error: "المستخدم غير موجود" };
@@ -228,6 +255,26 @@ export function changePassword(id: string, oldPassword: string, newPassword: str
   user.password = newPassword;
   saveUsers(users);
   return { ok: true };
+}
+
+// ✅ جديد: تحديث الأقسام المسموح بها لمستخدم
+export function updateUserDepartments(id: string, departments: string[]): { ok: boolean; error?: string } {
+  return updateUser(id, { allowedDepartments: departments });
+}
+
+// ✅ جديد: هل المستخدم مقيّد بأقسام؟
+export function isUserRestricted(user: User | Session): boolean {
+  return !!(user.allowedDepartments && user.allowedDepartments.length > 0);
+}
+
+// ✅ جديد: فلترة الموظفين حسب أقسام المستخدم
+export function filterByUserDepartments<T extends Employee>(
+  employees: T[],
+  session: Session
+): T[] {
+  if (!isUserRestricted(session)) return employees; // المدير يرى الكل
+  const allowed = session.allowedDepartments || [];
+  return employees.filter((e) => allowed.includes(e.department || ""));
 }
 
 /* ============================================================
@@ -239,6 +286,7 @@ export function getSession(): Session | null {
     if (!raw) return null;
     const s = JSON.parse(raw) as Session;
     s.permissions = normalizePermissions(s.role, s.permissions);
+    if (s.allowedDepartments === undefined) s.allowedDepartments = [];
     return s;
   } catch { return null; }
 }
@@ -251,178 +299,129 @@ export function setSession(s: Session | null): void {
 /* ============================================================
    LOGS
    ============================================================ */
-const MAX_LOGS = 2000;
-
 export function getLogs(): ActivityLog[] {
-  try { return JSON.parse(localStorage.getItem(KEYS.LOGS) || "[]"); }
-  catch { return []; }
+  try {
+    const raw = localStorage.getItem(KEYS.LOGS);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-export function addLog(actor: Session | { userId: string; username: string; fullName: string; role: "admin" | "employee" | "public" } | null, action: ActionType, details: string = ""): void {
-  if (!actor) return;
-  const logs = getLogs();
-  logs.unshift({
-    id: "l_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-    userId: actor.userId,
-    username: actor.username,
-    fullName: actor.fullName,
-    role: actor.role,
-    action,
-    details,
-    timestamp: new Date().toISOString(),
-  });
-  if (logs.length > MAX_LOGS) logs.length = MAX_LOGS;
-  localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+export function addLog(
+  session: Pick<Session, "userId" | "username" | "fullName" | "role">,
+  action: ActionType,
+  details: string
+): void {
+  try {
+    const logs = getLogs();
+    logs.push({
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+      userId:    session.userId,
+      username:  session.username,
+      fullName:  session.fullName,
+      role:      session.role,
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+    });
+    // احتفظ بآخر 500 سجل فقط
+    if (logs.length > 500) logs.splice(0, logs.length - 500);
+    localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+  } catch { /* تجاهل أخطاء التخزين */ }
 }
 
 export function clearLogs(): void {
-  localStorage.setItem(KEYS.LOGS, "[]");
+  localStorage.removeItem(KEYS.LOGS);
 }
-
-export function getUserStats(userId: string): {
-  totalLogins: number;
-  totalOperations: number;
-  lastLogin: string | null;
-  lastLogout: string | null;
-  lastActivity: string | null;
-  operationsCount: Record<string, number>;
-} {
-  const logs = getLogs().filter((l) => l.userId === userId);
-  const loginLogs = logs.filter((l) => l.action === "login");
-  const logoutLogs = logs.filter((l) => l.action === "logout");
-  const ops: Record<string, number> = {};
-  logs.forEach((l) => { ops[l.action] = (ops[l.action] || 0) + 1; });
-  return {
-    totalLogins: loginLogs.length,
-    totalOperations: logs.filter((l) => l.action !== "login" && l.action !== "logout").length,
-    lastLogin: loginLogs[0]?.timestamp || null,
-    lastLogout: logoutLogs[0]?.timestamp || null,
-    lastActivity: logs[0]?.timestamp || null,
-    operationsCount: ops,
-  };
-}
-
-export const ACTION_LABELS: Record<ActionType, string> = {
-  login: "تسجيل دخول", logout: "تسجيل خروج",
-  view_employee: "عرض بيانات موظف", print_employee: "طباعة نموذج موظف",
-  print_summary: "طباعة ملخص", print_all: "طباعة كل النماذج",
-  export_csv: "تصدير CSV", search: "بحث", filter: "تصفية",
-  refresh_data: "تحديث البيانات",
-  edit_employee: "تعديل بيانات موظف", save_employee: "حفظ تعديلات موظف",
-  create_user: "إنشاء مستخدم", update_user: "تعديل مستخدم",
-  delete_user: "حذف مستخدم", change_password: "تغيير كلمة المرور",
-  toggle_user: "تفعيل/تعطيل مستخدم", update_permissions: "تعديل صلاحيات",
-  add_field: "إضافة حقل مخصص", delete_field: "حذف حقل مخصص",
-  public_search: "بحث عام (موظف)", share_employee: "مشاركة بيانات موظف",
-  clear_logs: "مسح السجلات",
-  restore_archive: "استعادة موظف من الأرشيف",
-  clean_archive: "تنظيف الأرشيف",
-};
 
 /* ============================================================
-   EMPLOYEE EDITS (local overrides for sheet data)
+   USER STATS
    ============================================================ */
-export function getAllEdits(): Record<string, EmployeeEdit> {
-  try { return JSON.parse(localStorage.getItem(KEYS.EDITS) || "{}"); }
-  catch { return {}; }
-}
-
-export function getEdit(nationalNumber: string): EmployeeEdit | null {
-  return getAllEdits()[nationalNumber] || null;
-}
-
-export function saveEdit(nationalNumber: string, overrides: Record<string, string>, editedBy: string, editedByName: string): void {
-  const all = getAllEdits();
-  const existing = all[nationalNumber];
-  all[nationalNumber] = {
-    nationalNumber,
-    overrides: { ...(existing?.overrides || {}), ...overrides },
-    editedBy,
-    editedByName,
-    editedAt: new Date().toISOString(),
+export function getUserStats(userId: string): { totalLogins: number; totalOperations: number } {
+  const logs = getLogs();
+  const userLogs = logs.filter((l) => l.userId === userId);
+  return {
+    totalLogins:     userLogs.filter((l) => l.action === "login").length,
+    totalOperations: userLogs.filter((l) => l.action !== "login" && l.action !== "logout").length,
   };
-  localStorage.setItem(KEYS.EDITS, JSON.stringify(all));
 }
 
-export function mergeEmployeeWithEdits(emp: Employee): Employee & Record<string, string> {
-  const edit = getEdit(emp.nationalNumber);
-  if (!edit) return emp as Employee & Record<string, string>;
-  return { ...emp, ...edit.overrides } as Employee & Record<string, string>;
+/* ============================================================
+   EMPLOYEE EDITS
+   ============================================================ */
+export function getEmployeeEdits(): EmployeeEdit[] {
+  try {
+    const raw = localStorage.getItem(KEYS.EDITS);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function saveEmployeeEdit(
+  nationalNumber: string,
+  overrides: Record<string, string>,
+  session: Session
+): void {
+  try {
+    const edits = getEmployeeEdits();
+    const idx = edits.findIndex((e) => e.nationalNumber === nationalNumber);
+    const edit: EmployeeEdit = {
+      nationalNumber,
+      overrides,
+      editedBy:     session.userId,
+      editedByName: session.fullName,
+      editedAt:     new Date().toISOString(),
+    };
+    if (idx >= 0) edits[idx] = edit;
+    else edits.push(edit);
+    localStorage.setItem(KEYS.EDITS, JSON.stringify(edits));
+  } catch { /* تجاهل */ }
 }
 
 export function mergeAllEmployees(employees: Employee[]): (Employee & Record<string, string>)[] {
-  const all = getAllEdits();
-  return employees.map((e) => {
-    const edit = all[e.nationalNumber];
-    if (!edit) return e as Employee & Record<string, string>;
-    return { ...e, ...edit.overrides } as Employee & Record<string, string>;
+  const edits = getEmployeeEdits();
+  return employees.map((emp) => {
+    const edit = edits.find((e) => e.nationalNumber === emp.nationalNumber);
+    if (!edit) return emp as Employee & Record<string, string>;
+    return { ...emp, ...edit.overrides } as Employee & Record<string, string>;
   });
 }
 
-export function findEmployeeByNationalNumber(employees: Employee[], nn: string): (Employee & Record<string, string>) | null {
-  const cleaned = nn.replace(/[^\d]/g, "").trim();
-  if (!cleaned) return null;
-  const found = employees.find((e) => e.nationalNumber === cleaned);
-  if (!found) return null;
-  return mergeEmployeeWithEdits(found);
+export function findEmployeeByNationalNumber(
+  employees: Employee[],
+  nn: string
+): (Employee & Record<string, string>) | null {
+  const merged = mergeAllEmployees(employees);
+  return merged.find((e) => e.nationalNumber === nn) || null;
 }
 
 /* ============================================================
    CUSTOM FIELDS
    ============================================================ */
 export function getCustomFields(): CustomField[] {
-  try { return JSON.parse(localStorage.getItem(KEYS.CUSTOM_FIELDS) || "[]"); }
-  catch { return []; }
+  try {
+    const raw = localStorage.getItem(KEYS.CUSTOM_FIELDS);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-export function addCustomField(label: string, createdBy: string, isRequired: boolean = false): { ok: boolean; error?: string; field?: CustomField } {
-  if (!label.trim() || label.trim().length < 2) return { ok: false, error: "اسم الحقل يجب أن يكون حرفين على الأقل" };
+export function addCustomField(
+  label: string,
+  createdBy: string,
+  isRequired = false
+): { ok: boolean; error?: string; field?: CustomField } {
   const fields = getCustomFields();
-  if (fields.some((f) => f.label === label.trim())) return { ok: false, error: "حقل بهذا الاسم موجود بالفعل" };
-  const key = "field_custom_" + Date.now();
+  if (fields.some((f) => f.label === label)) return { ok: false, error: "الحقل موجود بالفعل" };
   const field: CustomField = {
-    id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-    key, label: label.trim(), isRequired, createdBy, createdAt: new Date().toISOString(),
+    id:        "cf_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+    key:       "field_custom_" + Date.now(),
+    label,
+    isRequired,
+    createdBy,
+    createdAt: new Date().toISOString(),
+    source:    createdBy === "sheet-sync" ? "sheet-sync" : "manual",
   };
   fields.push(field);
   localStorage.setItem(KEYS.CUSTOM_FIELDS, JSON.stringify(fields));
   return { ok: true, field };
-}
-
-export function toggleFieldRequired(id: string): void {
-  const fields = getCustomFields();
-  const f = fields.find((x) => x.id === id);
-  if (f) { f.isRequired = !f.isRequired; localStorage.setItem(KEYS.CUSTOM_FIELDS, JSON.stringify(fields)); }
-}
-
-/* ============== REQUIRED FIELDS CONFIG (for standard fields) ============== */
-const REQUIRED_FIELDS_KEY = "nacc_required_fields_config_v1";
-
-export function getRequiredFieldsConfig(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(REQUIRED_FIELDS_KEY);
-    if (!raw) return getDefaultRequiredConfig();
-    return JSON.parse(raw);
-  } catch { return getDefaultRequiredConfig(); }
-}
-
-function getDefaultRequiredConfig(): Record<string, boolean> {
-  return {
-    fullName: true, nationalNumber: true, jobNumber: true,
-    jobGrade: true, qualification: true, specialization: true,
-    grade: true, qualificationOrigin: true,
-    bankName: true, iban: true,
-    appointmentDecision: true, startDate: true, promotionDate: true,
-    phone: true, department: true, section: true,
-    // Non-required by default:
-    gender: false, receivesPension: false, status: false,
-    dataComplete: false, jobStatus: false, employmentType: false,
-    notes: false, requiredAction: false,
-  };
-}
-
-export function saveRequiredFieldsConfig(config: Record<string, boolean>): void {
-  localStorage.setItem(REQUIRED_FIELDS_KEY, JSON.stringify(config));
 }
 
 export function deleteCustomField(id: string): void {
@@ -430,28 +429,23 @@ export function deleteCustomField(id: string): void {
   localStorage.setItem(KEYS.CUSTOM_FIELDS, JSON.stringify(fields));
 }
 
-/* ============================================================
-   إدارة الأقسام المسموح بها للمستخدم
-   ============================================================ */
-
-// هل المستخدم مقيّد بأقسام محددة؟
-export function isUserRestricted(user: User | Session): boolean {
-  return !!(user.allowedDepartments && user.allowedDepartments.length > 0);
+export function toggleFieldRequired(id: string): void {
+  const fields = getCustomFields();
+  const f = fields.find((f) => f.id === id);
+  if (f) {
+    f.isRequired = !f.isRequired;
+    localStorage.setItem(KEYS.CUSTOM_FIELDS, JSON.stringify(fields));
+  }
 }
 
-// فلترة الموظفين حسب أقسام المستخدم
-export function filterByUserDepartments<T extends Employee>(
-  employees: T[],
-  session: Session
-): T[] {
-  if (!isUserRestricted(session)) return employees; // يرى الكل
-  const allowed = session.allowedDepartments || [];
-  return employees.filter((e) =>
-    allowed.includes(e.department || "") || allowed.includes(e.branch || "")
-  );
-}
-
-// تحديث الأقسام المسموح بها لمستخدم
-export function updateUserDepartments(id: string, departments: string[]): { ok: boolean; error?: string } {
-  return updateUser(id, { allowedDepartments: departments } as Partial<User>);
+export function getRequiredFieldsConfig(): Record<string, boolean> {
+  const fields = getCustomFields();
+  const config: Record<string, boolean> = {
+    fullName: true, nationalNumber: true, jobNumber: true,
+    jobGrade: true, qualification: true, specialization: true,
+    bankName: true, iban: true, appointmentDecision: true,
+    startDate: true, phone: true, department: true,
+  };
+  fields.forEach((f) => { if (f.isRequired) config[f.key] = true; });
+  return config;
 }
