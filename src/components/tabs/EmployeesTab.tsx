@@ -253,13 +253,13 @@ export function EmployeesTab({ session }: { session: Session }) {
       const cf = cfs.find((c) => c.key === key);
       sheetUpdates[cf ? cf.label : key] = overrides[key];
     }
-    const ok = await updateEmployeeInSheet(nn, sheetUpdates);
-    if (ok) {
+    const result = await updateEmployeeInSheet(nn, sheetUpdates);
+    if (result.ok) {
       addLog(session, "save_employee", `تحديث: ${name} (${nn})`);
       alert("✅ تم الحفظ بنجاح. ستظهر التغييرات خلال لحظات.");
       setTimeout(() => loadData(), 3500);
     } else {
-      alert("❌ فشل الاتصال.");
+      alert(`❌ فشل الحفظ: ${result.message || "تعذّر الاتصال بالخادم"}`);
     }
     setEditingEmployee(null);
   };
@@ -283,12 +283,12 @@ export function EmployeesTab({ session }: { session: Session }) {
       sheetEmployee[cf ? cf.label : key] = employee[key];
     }
     const result = await addEmployeeToSheet(sheetEmployee);
-    if (result) {
+    if (result.ok) {
       addLog(session, "create_user", `إضافة موظف: ${employee.fullName} (${employee.nationalNumber})`);
       alert("✅ تمت الإضافة بنجاح!");
       setTimeout(() => loadData(), 3500);
     } else {
-      alert("❌ فشل الاتصال.");
+      alert(`❌ فشلت الإضافة: ${result.message || "تعذّر الاتصال بالخادم"}`);
     }
     setShowAddEmployee(false);
   };

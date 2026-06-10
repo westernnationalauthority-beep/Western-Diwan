@@ -94,17 +94,16 @@ export async function employeeLogin(nationalNumber: string, code: string): Promi
 }
 
 export async function generateEmployeeCode(nationalNumber: string, codeType = "شخصي"): Promise<{ status: string; code?: string; expiry?: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "generate_code", nationalNumber, codeType }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "generate_code", nationalNumber, codeType });
+  const d = (r.data || {}) as { code?: string; expiry?: string };
+  return r.ok
+    ? { status: "success", code: d.code, expiry: d.expiry }
+    : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function unblockEmployee(nationalNumber: string): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "unblock", nationalNumber }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "unblock", nationalNumber });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 /* ============================================================
@@ -118,10 +117,11 @@ export interface DeleteRequest {
 }
 
 export async function requestEmployeeDelete(data: { nationalNumber: string; employeeName: string; reason: string; docNumber?: string; docDate?: string; submittedBy: string; }): Promise<{ status: string; message?: string; refNum?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "request_delete", ...data }) });
-    return { status: "success", message: "تم إرسال طلب الحذف بنجاح" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "request_delete", ...data });
+  const d = (r.data || {}) as { refNum?: string };
+  return r.ok
+    ? { status: "success", message: "تم إرسال طلب الحذف بنجاح", refNum: d.refNum }
+    : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function getDeleteRequests(): Promise<DeleteRequest[]> {
@@ -133,17 +133,13 @@ export async function getDeleteRequests(): Promise<DeleteRequest[]> {
 }
 
 export async function approveDeleteRequest(refNum: string, adminNote: string, adminName: string): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "approve_delete", refNum, adminNote, adminName }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "approve_delete", refNum, adminNote, adminName });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function rejectDeleteRequest(refNum: string, adminNote: string): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "reject_delete", refNum, adminNote }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "reject_delete", refNum, adminNote });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function getArchivedEmployees(): Promise<Record<string, string>[]> {
@@ -155,130 +151,176 @@ export async function getArchivedEmployees(): Promise<Record<string, string>[]> 
 }
 
 export async function restoreEmployeeFromArchive(nationalNumber: string): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "restore_archive", nationalNumber }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "restore_archive", nationalNumber });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export const DELETE_REASONS = ["نقل لجهة أخرى","استقالة","تقاعد","وفاة","فصل","انتهاء عقد","أخرى"];
 
 export async function cleanArchive(months: number): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "clean_archive", months }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "clean_archive", months });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function cleanDeleteRequests(months: number, onlyProcessed = true): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "clean_delete_requests", months, onlyProcessed }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "clean_delete_requests", months, onlyProcessed });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 export async function permanentDeleteFromArchive(nationalNumber: string, adminNote = "", adminName = ""): Promise<{ status: string; message?: string }> {
-  try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "permanent_delete_archive", nationalNumber, adminNote, adminName }) });
-    return { status: "success" };
-  } catch { return { status: "error", message: "فشل الاتصال" }; }
+  const r = await postAction({ action: "permanent_delete_archive", nationalNumber, adminNote, adminName });
+  return r.ok ? { status: "success" } : { status: "error", message: r.message || "فشل الاتصال" };
 }
 
 /* ============================================================
    parseEmployees - يقرأ الفرع تلقائياً من الـ headers
    ============================================================ */
-function parseEmployees(data: unknown[][]): Employee[] {
-  const headers: string[] = (data[0] as string[]) || [];
+function parseEmployees(data: unknown): Employee[] {
+  // حماية: يجب أن تكون البيانات مصفوفة صفوف صالحة
+  if (!Array.isArray(data) || data.length === 0) return [];
 
-  return data.slice(1).map((row: unknown[]) => {
-    const getVal = (idx: number): string => {
-      if (idx < 0 || row[idx] === null || row[idx] === undefined) return "";
-      return String(row[idx]);
-    };
+  const headers: string[] = Array.isArray(data[0]) ? (data[0] as string[]) : [];
 
-    const emp: Record<string, string> = {
-      timestamp:           getVal(0),   // A
-      nationalNumber:      getVal(1).replace(/[^\d]/g, ""), // B
-      jobNumber:           getVal(2),   // C
-      fullName:            getVal(3).trim(),  // D
-      bankName:            getVal(4),   // E
-      iban:                getVal(5),   // F
-      jobGrade:            getVal(6).trim(),  // G
-      qualification:       getVal(7).trim(),  // H
-      specialization:      getVal(8).trim(),  // I
-      qualificationOrigin: getVal(9).trim(),  // J
-      grade:               getVal(10).trim(), // K
-      appointmentDecision: getVal(11).trim(), // L
-      startDate:           getVal(12).trim(), // M
-      promotionDate:       getVal(13).trim(), // N
-      phone:               getVal(14).trim(), // O
-      receivesPension:     getVal(15).trim(), // P
-      status:              getVal(16).trim(), // Q
-      notes:               getVal(17).trim(), // R
-      requiredAction:      getVal(18).trim(), // S
-      branch:              getVal(19).trim(), // T ← الفرع
-      department:          getVal(20).trim(), // U ← الإدارة
-      section:             getVal(21).trim(), // V ← القسم
-      jobStatus:           getVal(22).trim(), // W
-      employmentType:      getVal(23).trim(), // X
-      dataComplete:        getVal(24).trim(), // Y
-      gender:              getVal(25).trim(), // Z ← الجنس
-    };
+  return data
+    .slice(1)
+    .filter((row): row is unknown[] => Array.isArray(row))
+    .map((row: unknown[]) => {
+      const getVal = (idx: number): string => {
+        if (idx < 0 || row[idx] === null || row[idx] === undefined) return "";
+        return String(row[idx]);
+      };
 
-    // الحقول المخصصة الإضافية تبدأ من بعد Z (index 26)
-    for (let i = 26; i < headers.length; i++) {
-      const header = (headers[i] || "").trim();
-      if (header) emp[header] = getVal(i).trim();
-    }
+      const emp: Record<string, string> = {
+        timestamp:           getVal(0),   // A
+        nationalNumber:      getVal(1).replace(/[^\d]/g, ""), // B
+        jobNumber:           getVal(2),   // C
+        fullName:            getVal(3).trim(),  // D
+        bankName:            getVal(4),   // E
+        iban:                getVal(5),   // F
+        jobGrade:            getVal(6).trim(),  // G
+        qualification:       getVal(7).trim(),  // H
+        specialization:      getVal(8).trim(),  // I
+        qualificationOrigin: getVal(9).trim(),  // J
+        grade:               getVal(10).trim(), // K
+        appointmentDecision: getVal(11).trim(), // L
+        startDate:           getVal(12).trim(), // M
+        promotionDate:       getVal(13).trim(), // N
+        phone:               getVal(14).trim(), // O
+        receivesPension:     getVal(15).trim(), // P
+        status:              getVal(16).trim(), // Q
+        notes:               getVal(17).trim(), // R
+        requiredAction:      getVal(18).trim(), // S
+        branch:              getVal(19).trim(), // T ← الفرع
+        department:          getVal(20).trim(), // U ← الإدارة
+        section:             getVal(21).trim(), // V ← القسم
+        jobStatus:           getVal(22).trim(), // W
+        employmentType:      getVal(23).trim(), // X
+        dataComplete:        getVal(24).trim(), // Y
+        gender:              getVal(25).trim(), // Z ← الجنس
+      };
 
-    return emp as unknown as Employee;
-  });
+      // الحقول المخصصة الإضافية تبدأ من بعد Z (index 26)
+      for (let i = 26; i < headers.length; i++) {
+        const header = (headers[i] || "").trim();
+        if (header) emp[header] = getVal(i).trim();
+      }
+
+      return emp as unknown as Employee;
+    })
+    // تجاهل الصفوف الفارغة تماماً (لا رقم وطني ولا اسم)
+    .filter((emp) => emp.nationalNumber !== "" || emp.fullName !== "");
 }
 
 export async function fetchEmployeesFromSheet(forceRefresh = false): Promise<Employee[]> {
   if (!forceRefresh) {
     const cached = loadFromCache();
     if (cached) {
-      fetch(API_URL, { cache: "no-store" })
-        .then((r) => r.json())
-        .then((data) => saveToCache(parseEmployees(data)))
-        .catch(() => {});
+      // تحديث في الخلفية — لا نكتب على الكاش إلا إذا وصلت بيانات صالحة
+      fetch(`${API_URL}?t=${Date.now()}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => {
+          const fresh = parseEmployees(data);
+          if (fresh.length > 0) saveToCache(fresh);
+        })
+        .catch(() => { /* نُبقي الكاش الحالي عند فشل التحديث الخلفي */ });
       return cached;
     }
   }
   const response = await fetch(`${API_URL}?t=${Date.now()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`فشل جلب البيانات (HTTP ${response.status})`);
   const data = await response.json();
   const employees = parseEmployees(data);
-  saveToCache(employees);
+  if (employees.length > 0) saveToCache(employees);
   return employees;
 }
 
-export async function updateEmployeeInSheet(nationalNumber: string, updates: Record<string, string>): Promise<boolean> {
-  clearEmployeesCache();
-  return sendAction({ action: "update", nationalNumber, updates });
+export async function updateEmployeeInSheet(nationalNumber: string, updates: Record<string, string>): Promise<ActionResult> {
+  const result = await postAction({ action: "update", nationalNumber, updates });
+  if (result.ok) clearEmployeesCache();
+  return result;
 }
 
-export async function deleteEmployeeFromSheet(nationalNumber: string): Promise<boolean> {
-  clearEmployeesCache();
-  return sendAction({ action: "delete", nationalNumber });
+export async function deleteEmployeeFromSheet(nationalNumber: string): Promise<ActionResult> {
+  const result = await postAction({ action: "delete", nationalNumber });
+  if (result.ok) clearEmployeesCache();
+  return result;
 }
 
-export async function addEmployeeToSheet(employee: Partial<Employee>): Promise<boolean> {
-  clearEmployeesCache();
-  return sendAction({ action: "add", employee });
+export async function addEmployeeToSheet(employee: Partial<Employee>): Promise<ActionResult> {
+  const result = await postAction({ action: "add", employee });
+  if (result.ok) clearEmployeesCache();
+  return result;
 }
 
-export async function addColumnToSheet(columnName: string): Promise<boolean> {
-  return sendAction({ action: "add_column", columnName });
+export async function addColumnToSheet(columnName: string): Promise<ActionResult> {
+  return postAction({ action: "add_column", columnName });
 }
 
-export async function deleteColumnFromSheet(columnName: string): Promise<boolean> {
-  return sendAction({ action: "delete_column", columnName });
+export async function deleteColumnFromSheet(columnName: string): Promise<ActionResult> {
+  return postAction({ action: "delete_column", columnName });
 }
 
-async function sendAction(payload: Record<string, unknown>): Promise<boolean> {
+/* ============================================================
+   POST helper - يقرأ استجابة الخادم الحقيقية (بدون no-cors)
+   ملاحظة: نستخدم Content-Type: text/plain لتجنّب preflight،
+   وهذا طلب "بسيط" يمكن قراءة استجابته عبر النطاقات.
+   ============================================================ */
+export interface ActionResult {
+  ok: boolean;
+  status?: string;
+  message?: string;
+  data?: unknown;
+}
+
+async function postAction(payload: Record<string, unknown>): Promise<ActionResult> {
   try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) });
-    return true;
-  } catch { return false; }
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      redirect: "follow",
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return { ok: false, message: `فشل الخادم (HTTP ${res.status})` };
+    }
+
+    // قد يعيد Apps Script نصاً أو JSON — نحاول تحليله بأمان
+    const text = await res.text();
+    if (!text) return { ok: true };
+
+    try {
+      const json = JSON.parse(text);
+      const status = json.status as string | undefined;
+      const ok = status === undefined ? true : status === "success" || status === "ok";
+      return { ok, status, message: json.message, data: json };
+    } catch {
+      // استجابة غير JSON: نعتبرها نجاحاً فقط إذا لم تحوِ كلمة خطأ
+      const looksLikeError = /error|fail|خطأ|فشل/i.test(text);
+      return { ok: !looksLikeError, message: looksLikeError ? text.slice(0, 200) : undefined };
+    }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "فشل الاتصال بالخادم" };
+  }
 }
