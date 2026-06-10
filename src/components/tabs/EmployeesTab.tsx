@@ -752,7 +752,7 @@ function EmployeeDetailModal({
   canEdit: boolean; canDelete: boolean; canPrint: boolean;
   onClose: () => void; onPrint: () => void; onEdit: () => void; onDelete: () => void;
 }) {
-  const emp = employee as Record<string, string>;
+  const emp = employee as unknown as Record<string, string>;
   const missing = getMissingFields(employee);
   const total = Object.keys(ALL_FIELD_LABELS).length;
   const filled = total - missing.length;
@@ -1326,7 +1326,7 @@ function EmployeeEditModal({ employee, customFields, onClose, onSave }: {
   onClose: () => void;
   onSave: (o: Record<string, string>) => void;
 }) {
-  const emp = employee as Record<string, string>;
+  const emp = employee as unknown as Record<string, string>;
   const [values, setValues] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
     EDITABLE_FIELDS.forEach((f) => { v[f.key] = emp[f.key] || ""; });
