@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { type Session, addLog } from "../../lib/storage";
-import { getArchivedEmployees, restoreEmployeeFromArchive, cleanArchive } from "../../data/employees";
+import { getArchivedEmployees, restoreEmployeeFromArchive, cleanArchive, permanentDeleteFromArchive } from "../../data/employees";
 
 export function ArchiveTab({ session }: { session: Session }) {
   const [archived, setArchived] = useState<Record<string, string>[]>([]);
@@ -10,6 +10,9 @@ export function ArchiveTab({ session }: { session: Session }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showCleanModal, setShowCleanModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<Record<string, string> | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteNote, setDeleteNote] = useState("");
   const [cleanMonths, setCleanMonths] = useState(12);
   const [cleaning, setCleaning] = useState(false);
 
@@ -45,6 +48,23 @@ export function ArchiveTab({ session }: { session: Session }) {
       alert("✅ تم استعادة الموظف بنجاح");
       setTimeout(() => load(), 1000);
     } else alert("❌ فشل الاستعادة");
+  };
+
+  const permanentDelete = async (emp: Record<string, string>) => {
+    const name = emp["الاســـم ربــاعـــي"];
+    const nn = emp["الرقم الوطني"];
+    setDeleting(true);
+    try {
+      const result = await permanentDeleteFromArchive(nn.toString(), deleteNote, session.fullName);
+      if (result.status === "success") {
+        addLog(session, "delete_user", `حذف نهائي من الأرشيف: ${name} (${nn}) - ${deleteNote}`);
+        alert("✅ تم الحذف النهائي للموظف");
+        setDeleteModal(null);
+        setDeleteNote("");
+        setTimeout(() => load(), 1000);
+      } else alert("❌ فشل الحذف النهائي");
+    } catch { alert("❌ فشل الاتصال"); }
+    finally { setDeleting(false); }
   };
 
   const handleClean = async () => {
@@ -120,6 +140,10 @@ export function ArchiveTab({ session }: { session: Session }) {
                         <button onClick={() => restore(emp)}
                           className="text-emerald-700 hover:text-white hover:bg-emerald-600 border border-emerald-200 px-2 py-1 rounded text-[10px] font-medium transition">♻️ استعادة</button>
                       )}
+                      {session.permissions.canRestoreArchive && (
+                        <button onClick={() => setDeleteModal(emp)}
+                          className="text-red-700 hover:text-white hover:bg-red-600 border border-red-200 px-2 py-1 rounded text-[10px] font-medium transition">🗑️ حذف نهائي</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -151,9 +175,74 @@ export function ArchiveTab({ session }: { session: Session }) {
             <div className="sticky bottom-0 bg-white border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
               <button onClick={() => setSelected(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm">إغلاق</button>
               {session.permissions.canRestoreArchive && (
+                <button onClick={() => { setSelected(null); setDeleteModal(selected); }}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">🗑️ حذف نهائي</button>
+              )}
+              {session.permissions.canRestoreArchive && (
                 <button onClick={() => { setSelected(null); restore(selected); }}
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">♻️ استعادة</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* مودال تأكيد الحذف النهائي */}
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setDeleteModal(null); setDeleteNote(""); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            {/* رأس المودال */}
+            <div className="bg-red-50 border-b border-red-200 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+              <div>
+                <h3 className="font-bold text-red-800">🗑️ حذف نهائي من الأرشيف</h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {deleteModal["الاســـم ربــاعـــي"]} •{" "}
+                  <span dir="ltr" className="font-mono">{deleteModal["الرقم الوطني"]}</span>
+                </p>
+              </div>
+              <button onClick={() => { setDeleteModal(null); setDeleteNote(""); }} className="p-2 hover:bg-red-100 rounded text-slate-500">✕</button>
+            </div>
+
+            {/* تفاصيل */}
+            <div className="p-5 space-y-3">
+              <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1.5">
+                <p><span className="text-slate-500">السبب:</span> <strong>{deleteModal["ملاحظة المدير والسبب النهائي"] || deleteModal["السبب"] || "—"}</strong></p>
+                <p><span className="text-slate-500">المؤرشف بواسطة:</span> {deleteModal["المؤرشف بواسطة"] || "—"}</p>
+                <p><span className="text-slate-500">تاريخ الأرشفة:</span> {deleteModal["تاريخ الأرشفة"] || "—"}</p>
+              </div>
+
+              {/* حقل الملاحظة */}
+              <div>
+                <label className="text-xs text-slate-600 font-medium mb-1 block">
+                  ملاحظة المدير <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={deleteNote}
+                  onChange={(e) => setDeleteNote(e.target.value)}
+                  rows={3}
+                  placeholder="سبب الحذف النهائي..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none"
+                />
+              </div>
+
+              {/* تحذير */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+                ⚠️ سيُحذف سجل الموظف نهائياً ولا يمكن استعادته لاحقاً.
+              </div>
+            </div>
+
+            {/* أزرار */}
+            <div className="border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
+              <button onClick={() => { setDeleteModal(null); setDeleteNote(""); }} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm">إلغاء</button>
+              <button
+                onClick={() => {
+                  if (!deleteNote.trim()) { alert("يرجى إدخال ملاحظة المدير"); return; }
+                  permanentDelete(deleteModal);
+                }}
+                disabled={deleting}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                {deleting ? "⏳ جاري الحذف..." : "🗑️ تأكيد الحذف النهائي"}
+              </button>
             </div>
           </div>
         </div>

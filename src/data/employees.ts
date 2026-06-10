@@ -177,6 +177,13 @@ export async function cleanDeleteRequests(months: number, onlyProcessed = true):
   } catch { return { status: "error", message: "فشل الاتصال" }; }
 }
 
+export async function permanentDeleteFromArchive(nationalNumber: string, adminNote = "", adminName = ""): Promise<{ status: string; message?: string }> {
+  try {
+    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "permanent_delete_archive", nationalNumber, adminNote, adminName }) });
+    return { status: "success" };
+  } catch { return { status: "error", message: "فشل الاتصال" }; }
+}
+
 /* ============================================================
    parseEmployees - يقرأ الفرع تلقائياً من الـ headers
    ============================================================ */

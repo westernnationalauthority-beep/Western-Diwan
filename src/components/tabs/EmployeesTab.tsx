@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, clearEmployeesCache, getCacheAge } from "../../data/employees";
+import { type Employee, fetchEmployeesFromSheet, updateEmployeeInSheet, addEmployeeToSheet, clearEmployeesCache, getCacheAge, requestEmployeeDelete } from "../../data/employees";
 import { type Session, type CustomField, addLog, getCustomFields, mergeAllEmployees, filterByUserDepartments, isUserRestricted } from "../../lib/storage";
 import { getMissingFields, syncCustomFieldsFromSheet, exportCSV, sendMissingFieldsViaWhatsApp, openWhatsApp } from "../../utils";
 import { printIndividualForm, printAllForms, printSummaryTable, printAlertTable } from "../../utils/print";
@@ -720,19 +720,11 @@ export function EmployeesTab({ session }: { session: Session }) {
         />
       )}
       {deleteRequestEmp && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4">
-            <div className="text-4xl">🗑️</div>
-            <h3 className="font-bold text-slate-900">طلب حذف موظف</h3>
-            <p className="text-sm text-slate-600">{deleteRequestEmp.fullName}</p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteRequestEmp(null)}
-                className="flex-1 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm">إلغاء</button>
-              <button onClick={() => setDeleteRequestEmp(null)}
-                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">تأكيد الطلب</button>
-            </div>
-          </div>
-        </div>
+        <DeleteRequestModal
+          employee={deleteRequestEmp}
+          session={session}
+          onClose={() => setDeleteRequestEmp(null)}
+        />
       )}
     </div>
   );
@@ -898,6 +890,346 @@ function DF({ label, value, mono, required, full }: { label: string; value: stri
         dir={mono && !empty ? "ltr" : undefined}>
         {empty ? "— فارغ" : value}
       </p>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// مودال طلب حذف موظف الكامل
+// ──────────────────────────────────────────────
+const DELETE_REASONS_LIST = [
+  "نقل لجهة أخرى",
+  "استقالة",
+  "تقاعد",
+  "وفاة",
+  "فصل",
+  "انتهاء عقد",
+  "أخرى",
+];
+
+function DeleteRequestModal({ employee, session, onClose }: {
+  employee: Employee;
+  session: Session;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [docNumber, setDocNumber] = useState("");
+  const [docDate, setDocDate] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [successData, setSuccessData] = useState<{
+    refNum: string; employeeName: string; nationalNumber: string;
+    reason: string; docNumber: string; docDate: string;
+    submittedBy: string; submitDate: string;
+  } | null>(null);
+
+  const finalReason = reason === "أخرى" ? otherReason.trim() : reason;
+
+  const handleSubmit = async () => {
+    if (!reason) { setError("يرجى اختيار سبب الحذف"); return; }
+    if (reason === "أخرى" && !otherReason.trim()) { setError("يرجى كتابة سبب الحذف"); return; }
+    if (!docNumber.trim()) { setError("يرجى إدخال رقم القرار/المستند"); return; }
+    if (!docDate) { setError("يرجى إدخال تاريخ القرار"); return; }
+
+    setError("");
+    setSubmitting(true);
+    try {
+      const result = await requestEmployeeDelete({
+        nationalNumber: employee.nationalNumber,
+        employeeName: employee.fullName,
+        reason: finalReason,
+        docNumber: docNumber.trim(),
+        docDate,
+        submittedBy: session.fullName,
+      });
+      if (result.status === "success") {
+        window.dispatchEvent(new Event("delete-requests-changed"));
+        setSuccessData({
+          refNum: result.refNum || "—",
+          employeeName: employee.fullName,
+          nationalNumber: employee.nationalNumber,
+          reason: finalReason,
+          docNumber: docNumber.trim(),
+          docDate,
+          submittedBy: session.fullName,
+          submitDate: new Date().toLocaleString("ar-LY"),
+        });
+      } else {
+        setError("❌ فشل إرسال الطلب. حاول مرة أخرى.");
+      }
+    } catch {
+      setError("❌ فشل الاتصال بالخادم.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!successData) return;
+    const printWin = window.open("", "_blank", "width=800,height=600");
+    if (!printWin) return;
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8"/>
+        <title>طلب حذف - ${successData.employeeName}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Arial', sans-serif; padding: 30px; color: #1e293b; direction: rtl; }
+          .header { text-align: center; border-bottom: 3px solid #1e293b; padding-bottom: 16px; margin-bottom: 24px; }
+          .header h1 { font-size: 18px; font-weight: bold; margin-top: 8px; }
+          .header p { font-size: 12px; color: #64748b; margin-top: 4px; }
+          .org { font-size: 14px; font-weight: bold; color: #1e40af; }
+          .title-box { background: #fef2f2; border: 2px solid #fca5a5; border-radius: 8px; padding: 12px 20px; text-align: center; margin-bottom: 24px; }
+          .title-box h2 { font-size: 20px; font-weight: bold; color: #dc2626; }
+          .ref-badge { display: inline-block; background: #1e293b; color: white; padding: 4px 16px; border-radius: 20px; font-size: 13px; margin-top: 6px; font-family: monospace; }
+          .section { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+          .section-title { background: #1e40af; color: white; padding: 8px 16px; font-size: 13px; font-weight: bold; }
+          .row { display: grid; grid-template-columns: 1fr 2fr; border-bottom: 1px solid #f1f5f9; }
+          .row:last-child { border-bottom: none; }
+          .label { padding: 10px 16px; font-size: 12px; color: #64748b; font-weight: bold; background: #f8fafc; border-left: 1px solid #e2e8f0; }
+          .value { padding: 10px 16px; font-size: 13px; color: #1e293b; }
+          .value.mono { font-family: monospace; direction: ltr; text-align: left; }
+          .warning { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #92400e; margin-bottom: 16px; }
+          .footer { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; }
+          .sign-area { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+          .sign-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+          .sign-box p { font-size: 11px; color: #64748b; margin-bottom: 40px; }
+          .sign-box .name { font-size: 12px; font-weight: bold; color: #1e293b; }
+          @media print { body { padding: 15px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="org">الهيئة الوطنية لمكافحة الفساد</div>
+          <div class="org">ديوان المنطقة الغربية</div>
+          <h1>نظام إدارة بيانات الموظفين</h1>
+          <p>NATIONAL ANTI-CORRUPTION COMMISSION - WESTERN REGION OFFICE</p>
+        </div>
+
+        <div class="title-box">
+          <h2>تفاصيل طلب حذف موظف</h2>
+          <div class="ref-badge">رقم الطلب: ${successData.refNum}</div>
+        </div>
+
+        <div class="warning">
+          ⚠️ <strong>تنبيه:</strong> الموظف لن يُحذف فوراً. سيتم إرسال هذا الطلب للمدير العام للموافقة، ثم سيُنقل إلى أرشيف الموظفين (لا حذف نهائي).
+        </div>
+
+        <div class="section">
+          <div class="section-title">بيانات الطلب</div>
+          <div class="row"><div class="label">رقم الطلب</div><div class="value mono">${successData.refNum}</div></div>
+          <div class="row"><div class="label">تاريخ تقديم الطلب</div><div class="value">${successData.submitDate}</div></div>
+          <div class="row"><div class="label">مُقدَّم بواسطة</div><div class="value">${successData.submittedBy}</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">بيانات الموظف</div>
+          <div class="row"><div class="label">الاسم الرباعي</div><div class="value">${successData.employeeName}</div></div>
+          <div class="row"><div class="label">الرقم الوطني</div><div class="value mono">${successData.nationalNumber}</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">بيانات الحذف</div>
+          <div class="row"><div class="label">سبب الحذف</div><div class="value">${successData.reason}</div></div>
+          <div class="row"><div class="label">رقم القرار / المستند</div><div class="value mono">${successData.docNumber}</div></div>
+          <div class="row"><div class="label">تاريخ القرار</div><div class="value">${successData.docDate}</div></div>
+        </div>
+
+        <div class="sign-area">
+          <div class="sign-box">
+            <p>توقيع مقدم الطلب</p>
+            <div class="name">${successData.submittedBy}</div>
+          </div>
+          <div class="sign-box">
+            <p>توقيع واعتماد المدير العام</p>
+            <div class="name">_______________</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>منظومة بيانات موظفي ديوان الغربية | الهيئة الوطنية لمكافحة الفساد © ${new Date().getFullYear()}</p>
+          <p>طُبع بتاريخ: ${new Date().toLocaleString("ar-LY")}</p>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  // ── مودال النجاح ──
+  if (successData) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-4 rounded-t-2xl text-center">
+            <div className="text-3xl mb-1">✅</div>
+            <h3 className="font-bold text-emerald-800 text-base">تم تقديم طلب الحذف بنجاح</h3>
+            <p className="text-xs text-slate-500 mt-1">سيتم مراجعته من قبل المدير العام</p>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">رقم الطلب</span>
+                <span className="font-mono font-bold text-indigo-700" dir="ltr">{successData.refNum}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">الموظف</span>
+                <span className="font-bold">{successData.employeeName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">الرقم الوطني</span>
+                <span className="font-mono" dir="ltr">{successData.nationalNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">سبب الحذف</span>
+                <span className="font-medium">{successData.reason}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">رقم القرار</span>
+                <span className="font-mono" dir="ltr">{successData.docNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تاريخ القرار</span>
+                <span>{successData.docDate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">مقدَّم بواسطة</span>
+                <span>{successData.submittedBy}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تاريخ الإرسال</span>
+                <span>{successData.submitDate}</span>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+              🖨️ يُنصح بطباعة هذه الوثيقة وإرفاقها مع طلب الحذف الورقي للمدير العام.
+            </div>
+          </div>
+          <div className="border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
+            <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm">إغلاق</button>
+            <button onClick={handlePrint}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5">
+              🖨️ طباعة الوثيقة
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        {/* رأس المودال */}
+        <div className="bg-red-50 border-b border-red-200 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h3 className="font-bold text-red-800 text-base">🗑️ طلب حذف موظف</h3>
+            <p className="text-xs text-slate-500 mt-0.5">سيتم إرسال الطلب للمدير العام للموافقة</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-red-100 rounded-lg text-slate-500">✕</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* بيانات الموظف */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <p className="text-xs text-slate-500 mb-0.5">الموظف</p>
+            <p className="font-bold text-slate-800">{employee.fullName}</p>
+            <p className="text-xs font-mono text-indigo-600" dir="ltr">{employee.nationalNumber}</p>
+          </div>
+
+          {/* سبب الحذف */}
+          <div>
+            <label className="text-xs text-slate-600 font-medium mb-1.5 block">
+              سبب الحذف <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {DELETE_REASONS_LIST.map((r) => (
+                <button key={r} onClick={() => { setReason(r); setError(""); }}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border transition text-right ${
+                    reason === r
+                      ? "bg-red-600 text-white border-red-600"
+                      : "bg-white text-slate-700 border-slate-300 hover:border-red-300 hover:bg-red-50"
+                  }`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* خانة "أخرى" */}
+          {reason === "أخرى" && (
+            <div>
+              <label className="text-xs text-slate-600 font-medium mb-1 block">
+                اكتب السبب <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={otherReason}
+                onChange={(e) => { setOtherReason(e.target.value); setError(""); }}
+                placeholder="اكتب سبب الحذف..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* رقم القرار وتاريخه */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-600 font-medium mb-1 block">
+                رقم القرار/المستند <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={docNumber}
+                onChange={(e) => { setDocNumber(e.target.value); setError(""); }}
+                placeholder="مثال: 123/2026"
+                dir="ltr"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600 font-medium mb-1 block">
+                تاريخ القرار <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={docDate}
+                onChange={(e) => { setDocDate(e.target.value); setError(""); }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* رسالة الخطأ */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 text-center">
+              {error}
+            </div>
+          )}
+
+          {/* تنبيه */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex gap-2">
+            <span className="text-base leading-none mt-0.5">⚠️</span>
+            <span>
+              <strong>تنبيه:</strong> الموظف لن يُحذف فوراً. سيتم إرسال طلبك للمدير العام للموافقة، ثم سيُنقل إلى أرشيف الموظفين (لا حذف نهائي).
+            </span>
+          </div>
+        </div>
+
+        {/* أزرار */}
+        <div className="border-t border-slate-200 px-5 py-3 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm">إلغاء</button>
+          <button onClick={handleSubmit} disabled={submitting}
+            className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-1.5">
+            {submitting ? "⏳ جاري الإرسال..." : "📨 إرسال الطلب"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -220,7 +220,16 @@ function ActionModal({ request, type, session, onClose, onSuccess }: {
         window.dispatchEvent(new Event("delete-requests-changed"));
         if (type === "approve")
           window.dispatchEvent(new CustomEvent("employee-removed", { detail: { nationalNumber: request.nationalNumber } }));
-        alert(type === "approve" ? "✅ تم نقل الموظف للأرشيف" : "✅ تم رفض الطلب");
+        alert(type === "approve"
+          ? `✅ تمت الموافقة على طلب الحذف\n\n` +
+            `الموظف: ${request.employeeName}\n` +
+            `الرقم الوطني: ${request.nationalNumber}\n` +
+            `السبب: ${request.reason}\n` +
+            `رقم القرار: ${request.docNumber || "—"}\n` +
+            `تاريخ القرار: ${request.docDate || "—"}\n` +
+            `ملاحظة المدير: ${note}\n\n` +
+            `⚠️ تم نقل الموظف إلى أرشيف الموظفين`
+          : `✅ تم رفض الطلب\n\nالموظف: ${request.employeeName}\nسبب الرفض: ${note}`);
         setTimeout(() => onSuccess(), 500);
       } else {
         setError("فشل التنفيذ، حاول مرة أخرى");
